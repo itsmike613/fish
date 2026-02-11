@@ -1,218 +1,171 @@
-export class UI {
-	constructor(events, state, inventory) {
-		this.events = events;
-		this.state = state;
-		this.inventory = inventory;
+// fish/Source/Scripts/UI.js
+import { get } from './State.js';
+import { events } from './Events.js';
 
-		// Required DOM ids
-		this.hotbarRoot = document.getElementById("hotbar");
-		this.inventoryRoot = document.getElementById("inventory");
-		this.crosshair = document.getElementById("crosshair");
+function el(tag, cls) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  return e;
+}
 
-		this.countdown = document.getElementById("bobberCountdown");
+export default class UI {
+  constructor(inv, renderer, fishing) {
+    this.inv = inv;
+    this.renderer = renderer;
+    this.fishing = fishing;
 
-		this.itemDataById = new Map();
+    this.hint = document.getElementById('hint');
+    this.hotbar = document.getElementById('hotbar');
+    this.invWrap = document.getElementById('inv');
+    this.grid = document.getElementById('grid');
+    this.bob = document.getElementById('bob');
 
-		this.hotbarSlots = [];
-		this.inventorySlots = [];
+    this.hotSlots = [];
+    this.invSlots = [];
 
-		this._buildHotbar();
-		this._buildInventory();
+    this._buildHotbar();
+    this._buildInv();
 
-		this._bindKeys();
-		this._bindLootLookup();
-		this._bindInventoryChanged();
+    this._syncAll();
 
-		this.render();
-	}
+    events.on('inv', () => this._syncAll());
+    events.on('state:slot', () => this._syncHotSel());
+    events.on('state:invOpen', () => this._syncInvOpen());
 
-	_bindLootLookup() {
-		// Inventory requests item data via event
-		this.events.on("loot:registerIndex", ({ index }) => {
-			this.itemDataById = index;
-			this.render();
-		});
+    this._syncInvOpen();
+    this._syncHint();
+  }
 
-		this.events.on("loot:requestItem", ({ id, set }) => {
-			set(this.itemDataById.get(id) || null);
-		});
-	}
+  _buildHotbar() {
+    this.hotbar.innerHTML = '';
+    this.hotSlots.length = 0;
 
-	_bindInventoryChanged() {
-		this.events.on("inventory:changed", () => this.render());
-		this.events.on("ui:hotbarSelected", () => this.render());
-		this.events.on("ui:inventoryToggled", () => this._applyInventoryMode());
-		this.events.on("fish:countdown", (payload) => this._renderCountdown(payload));
-	}
+    for (let i = 0; i < 9; i++) {
+      const s = el('div', 'slot');
+      const img = el('img');
+      img.draggable = false;
+      const cnt = el('div', 'cnt');
 
-	_bindKeys() {
-		window.addEventListener("keydown", (e) => {
-			if (e.code === "KeyE") {
-				e.preventDefault();
-				this.toggleInventory();
-				return;
-			}
+      s.appendChild(img);
+      s.appendChild(cnt);
 
-			// Number keys 1-9 select hotbar even when inventory closed
-			if (!this.state.ui.inventoryOpen) {
-				const n = this._numberKeyToIndex(e.code);
-				if (n !== -1) {
-					this.state.ui.selectedHotbarIndex = n;
-					this.events.emit("ui:hotbarSelected", { index: n });
-				}
-			}
-		});
-	}
+      this.hotbar.appendChild(s);
+      this.hotSlots.push({ s, img, cnt });
+    }
+  }
 
-	_numberKeyToIndex(code) {
-		if (code === "Digit1") return 0;
-		if (code === "Digit2") return 1;
-		if (code === "Digit3") return 2;
-		if (code === "Digit4") return 3;
-		if (code === "Digit5") return 4;
-		if (code === "Digit6") return 5;
-		if (code === "Digit7") return 6;
-		if (code === "Digit8") return 7;
-		if (code === "Digit9") return 8;
-		return -1;
-	}
+  _buildInv() {
+    this.grid.innerHTML = '';
+    this.invSlots.length = 0;
 
-	toggleInventory() {
-		this.state.ui.inventoryOpen = !this.state.ui.inventoryOpen;
-		this.events.emit("ui:inventoryToggled", { open: this.state.ui.inventoryOpen });
-	}
+    for (let i = 0; i < 36; i++) {
+      const s = el('div', 'slot');
+      const img = el('img');
+      img.draggable = false;
+      const cnt = el('div', 'cnt');
 
-	_applyInventoryMode() {
-		const open = this.state.ui.inventoryOpen;
+      s.appendChild(img);
+      s.appendChild(cnt);
 
-		if (open) {
-			this.inventoryRoot.classList.remove("hidden");
-			document.body.classList.add("inventoryOpen");
-			// Stop pointer lock to show cursor
-			if (document.pointerLockElement) document.exitPointerLock();
-		} else {
-			this.inventoryRoot.classList.add("hidden");
-			document.body.classList.remove("inventoryOpen");
-			// countdown hiding handled by Fishing
-		}
-	}
+      s.addEventListener('click', () => {
+        if (!get('invOpen')) return;
+        this.inv.moveBetween('inv', i);
+      });
 
-	_buildHotbar() {
-		this.hotbarRoot.innerHTML = "";
-		this.hotbarSlots = [];
+      this.grid.appendChild(s);
+      this.invSlots.push({ s, img, cnt });
+    }
 
-		for (let i = 0; i < 9; i++) {
-			const slot = document.createElement("div");
-			slot.className = "slot";
-			slot.dataset.group = "hotbar";
-			slot.dataset.index = String(i);
+    // enable clicking hotbar only when inventory open
+    for (let i = 0; i < 9; i++) {
+      this.hotSlots[i].s.addEventListener('click', () => {
+        if (!get('invOpen')) return;
+        this.inv.moveBetween('hot', i);
+      });
+    }
+  }
 
-			slot.addEventListener("click", () => {
-				if (this.state.ui.inventoryOpen) {
-					// In inventory mode, clicking hotbar slot moves item to inventory
-					this.inventory.moveStack("hotbar", i, "inventory");
-				} else {
-					// Select slot
-					this.state.ui.selectedHotbarIndex = i;
-					this.events.emit("ui:hotbarSelected", { index: i });
-				}
-			});
+  _syncAll() {
+    this._syncHot();
+    this._syncInv();
+    this._syncHotSel();
+  }
 
-			this.hotbarRoot.appendChild(slot);
-			this.hotbarSlots.push(slot);
-		}
-	}
+  _syncSlot(ui, item) {
+    if (!item) {
+      ui.img.style.display = 'none';
+      ui.img.src = '';
+      ui.cnt.textContent = '';
+      return;
+    }
 
-	_buildInventory() {
-		this.inventoryRoot.innerHTML = "";
+    const d = this.inv.getDef(item.id);
+    if (!d) {
+      ui.img.style.display = 'none';
+      ui.img.src = '';
+      ui.cnt.textContent = '';
+      return;
+    }
 
-		const title = document.createElement("div");
-		title.className = "inventoryTitle";
+    ui.img.style.display = 'block';
+    ui.img.src = d.sprite;
+    ui.cnt.textContent = item.n > 1 ? String(item.n) : '';
+  }
 
-		const label = document.createElement("div");
-		label.className = "label";
-		label.textContent = "Inventory";
+  _syncHot() {
+    for (let i = 0; i < 9; i++) {
+      this._syncSlot(this.hotSlots[i], this.inv.hot[i]);
+    }
+  }
 
-		const tip = document.createElement("div");
-		tip.className = "tip";
-		tip.textContent = "Click items to move between inventory and hotbar • Press E to close";
+  _syncInv() {
+    for (let i = 0; i < 36; i++) {
+      this._syncSlot(this.invSlots[i], this.inv.inv[i]);
+    }
+  }
 
-		title.appendChild(label);
-		title.appendChild(tip);
+  _syncHotSel() {
+    const sel = get('slot');
+    for (let i = 0; i < 9; i++) {
+      if (i === sel) this.hotSlots[i].s.classList.add('sel');
+      else this.hotSlots[i].s.classList.remove('sel');
+    }
+  }
 
-		const grid = document.createElement("div");
-		grid.className = "inventoryGrid";
+  _syncInvOpen() {
+    const open = get('invOpen');
+    this.invWrap.classList.toggle('hide', !open);
+    this.hotbar.style.pointerEvents = open ? 'auto' : 'none';
+    this._syncHint();
+  }
 
-		this.inventorySlots = [];
+  _syncHint() {
+    const open = get('invOpen');
+    const locked = get('pointerLocked');
+    const show = !open && !locked;
+    this.hint.style.display = show ? 'block' : 'none';
+  }
 
-		for (let i = 0; i < 36; i++) {
-			const slot = document.createElement("div");
-			slot.className = "slot";
-			slot.dataset.group = "inventory";
-			slot.dataset.index = String(i);
+  update() {
+    this._syncHint();
 
-			slot.addEventListener("click", () => {
-				// Click inventory slot moves to hotbar
-				this.inventory.moveStack("inventory", i, "hotbar");
-			});
+    const hud = this.fishing.getHud();
+    if (!hud || !hud.show) {
+      this.bob.classList.add('hide');
+      return;
+    }
 
-			grid.appendChild(slot);
-			this.inventorySlots.push(slot);
-		}
+    const cam = this.renderer.camera;
+    const r = this.renderer.r;
+    const v = hud.pos.clone().project(cam);
 
-		this.inventoryRoot.appendChild(title);
-		this.inventoryRoot.appendChild(grid);
-	}
+    const x = (v.x * 0.5 + 0.5) * r.domElement.clientWidth;
+    const y = (-v.y * 0.5 + 0.5) * r.domElement.clientHeight;
 
-	render() {
-		// Hotbar visuals
-		const selected = this.state.ui.selectedHotbarIndex;
-
-		for (let i = 0; i < 9; i++) {
-			const slot = this.hotbarSlots[i];
-			slot.classList.toggle("selected", i === selected);
-			this._renderSlot(slot, this.inventory.hotbar[i]);
-		}
-
-		// Inventory visuals
-		for (let i = 0; i < 36; i++) {
-			const slot = this.inventorySlots[i];
-			this._renderSlot(slot, this.inventory.inventory[i]);
-		}
-	}
-
-	_renderSlot(slotEl, stack) {
-		slotEl.innerHTML = "";
-
-		if (!stack) return;
-
-		const data = this.itemDataById.get(stack.id);
-		if (!data) return;
-
-		const img = document.createElement("img");
-		img.src = data.sprite;
-		img.alt = data.name;
-
-		slotEl.appendChild(img);
-
-		if (stack.count > 1) {
-			const count = document.createElement("div");
-			count.className = "count";
-			count.textContent = String(stack.count);
-			slotEl.appendChild(count);
-		}
-	}
-
-	_renderCountdown(payload) {
-		// payload: { visible, text, color, x, y }
-		if (!payload || !payload.visible) {
-			this.countdown.classList.add("hidden");
-			return;
-		}
-		this.countdown.classList.remove("hidden");
-		this.countdown.textContent = payload.text;
-		this.countdown.style.color = payload.color;
-		this.countdown.style.left = `${payload.x}px`;
-		this.countdown.style.top = `${payload.y}px`;
-	}
+    this.bob.classList.remove('hide');
+    this.bob.textContent = hud.text;
+    this.bob.style.color = hud.color;
+    this.bob.style.left = `${x}px`;
+    this.bob.style.top = `${y}px`;
+  }
 }

@@ -1,68 +1,57 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+// fish/Source/Scripts/Renderer.js
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { set } from './State.js';
 
-export class Renderer {
-	constructor(canvas) {
-		this.canvas = canvas;
-
+export default class Renderer {
+	constructor() {
 		this.scene = new THREE.Scene();
-		this.scene.background = new THREE.Color(0x7fb7ff);
+		this.camera = new THREE.PerspectiveCamera(75, 1, 0.05, 600);
+		this.r = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+		this.r.outputColorSpace = THREE.SRGBColorSpace;
+		this.r.toneMapping = THREE.ACESFilmicToneMapping;
+		this.r.toneMappingExposure = 1.15;
 
-		this.camera = new THREE.PerspectiveCamera(
-			75,
-			1,
-			0.06,
-			2000
-		);
+		this.scene.background = new THREE.Color(0xaad7ff);
+		this.scene.fog = new THREE.FogExp2(0xaad7ff, 0.010);
 
-		this.renderer = new THREE.WebGLRenderer({
-			canvas,
-			antialias: true,
-			alpha: false
-		});
+		const amb = new THREE.AmbientLight(0xffffff, 0.62);
+		this.scene.add(amb);
 
-		this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-		this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-		this.renderer.toneMappingExposure = 1.18;
-		this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-		// Beach vibe lighting
-		const sun = new THREE.DirectionalLight(0xfff0cf, 1.25);
-		sun.position.set(12, 18, 8);
+		const sun = new THREE.DirectionalLight(0xffffff, 0.95);
+		sun.position.set(30, 60, 20);
 		this.scene.add(sun);
 
-		const sky = new THREE.HemisphereLight(0x9fd2ff, 0xffd6a5, 0.85);
-		this.scene.add(sky);
+		this.r.domElement.id = 'c';
+		this.r.domElement.tabIndex = 0;
+		document.body.appendChild(this.r.domElement);
 
-		// Warm distance haze
-		this.surfaceFog = new THREE.FogExp2(0x7fb7ff, 0.006);
-		this.underwaterFog = new THREE.FogExp2(0x2aa7c7, 0.045);
-		this.scene.fog = this.surfaceFog;
+		this._onResize = () => this.resize();
+		window.addEventListener('resize', this._onResize, { passive: true });
 
-		window.addEventListener("resize", () => this.resize());
-		this.resize();
+		this._onLockChange = () => {
+			set('pointerLocked', document.pointerLockElement === this.r.domElement);
+		};
+		document.addEventListener('pointerlockchange', this._onLockChange);
 	}
 
 	resize() {
-		const w = this.canvas.clientWidth;
-		const h = this.canvas.clientHeight;
+		const w = window.innerWidth;
+		const h = window.innerHeight;
 		this.camera.aspect = w / h;
 		this.camera.updateProjectionMatrix();
-		this.renderer.setSize(w, h, false);
-	}
-
-	setUnderwater(isUnderwater) {
-		if (isUnderwater) {
-			this.scene.background.set(0x2aa7c7);
-			this.scene.fog = this.underwaterFog;
-			this.renderer.toneMappingExposure = 0.95;
-		} else {
-			this.scene.background.set(0x7fb7ff);
-			this.scene.fog = this.surfaceFog;
-			this.renderer.toneMappingExposure = 1.18;
-		}
+		this.r.setSize(w, h, false);
+		this.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 	}
 
 	render() {
-		this.renderer.render(this.scene, this.camera);
+		this.r.render(this.scene, this.camera);
+	}
+
+	lockPointer() {
+		this.r.domElement.requestPointerLock();
+	}
+
+	unlockPointer() {
+		if (document.pointerLockElement === this.r.domElement) document.exitPointerLock();
 	}
 }

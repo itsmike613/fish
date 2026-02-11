@@ -1,27 +1,38 @@
-export function createState() {
-	// Shared runtime state slices (future-proof: add Save/Shop/Audio later via events + new slices)
-	return {
-		time: {
-			now: 0,
-			dt: 0
-		},
-		ui: {
-			inventoryOpen: false,
-			selectedHotbarIndex: 0
-		},
-		input: {
-			pointerLocked: false
-		},
-		player: {
-			position: { x: 0, y: 0, z: 0 }
-		},
-		// fishing state variable name: fish
-		fish: {
-			cast: false,
-			biteActive: false,
-			timer: 0,
-			wait: 0,
-			lastCountdownVisible: false
-		}
-	};
+// fish/Source/Scripts/State.js
+import { events } from './Events.js';
+
+const s = {
+	invOpen: false,
+	pointerLocked: false,
+	slot: 0,
+	catches: Object.create(null),
+};
+
+export function get(key) {
+	return s[key];
+}
+
+export function set(key, val) {
+	if (s[key] === val) return;
+	s[key] = val;
+	events.emit('state', { key, val });
+	events.emit(`state:${key}`, val);
+}
+
+export function toggleInv() {
+	set('invOpen', !s.invOpen);
+}
+
+export function setSlot(i) {
+	const n = Math.max(0, Math.min(8, i | 0));
+	set('slot', n);
+}
+
+export function getCatch(id) {
+	return s.catches[id] || 0;
+}
+
+export function incCatch(id) {
+	s.catches[id] = (s.catches[id] || 0) + 1;
+	events.emit('catches', { id, n: s.catches[id] });
 }

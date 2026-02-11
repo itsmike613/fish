@@ -1,33 +1,37 @@
+<!-- fish/index.html -->
 <!doctype html>
 <html lang="en">
 
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>Fishing</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>fish</title>
+
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
+
 	<link rel="stylesheet" href="./Source/Styles/styles.css" />
 </head>
 
 <body>
-	<div id="gameRoot">
-		<canvas id="gameCanvas"></canvas>
+	<div id="ui">
+		<div id="hint">Click to play</div>
+		<div id="crosshair">
+			<div class="h"></div>
+			<div class="v"></div>
+		</div>
 
-		<!-- Crosshair -->
-		<div id="crosshair">+</div>
-
-		<!-- Hotbar -->
 		<div id="hotbar"></div>
 
-		<!-- Inventory -->
-		<div id="inventory" class="hidden"></div>
-
-		<!-- Floating countdown above bobber -->
-		<div id="bobberCountdown" class="hidden"></div>
-
-		<!-- Small hint text -->
-		<div id="hint">
-			Click to lock mouse • WASD move • CTRL sprint • SPACE jump • E inventory • RMB fish
+		<div id="inv" class="hide">
+			<div class="panel">
+				<div class="title">Inventory</div>
+				<div id="grid"></div>
+			</div>
 		</div>
+
+		<div id="bob" class="hide"></div>
 	</div>
 
 	<script type="module" src="./Source/Scripts/main.js"></script>

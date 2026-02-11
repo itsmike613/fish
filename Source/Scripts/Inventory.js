@@ -1,109 +1,134 @@
-export class Inventory {
-	constructor(events) {
-		this.events = events;
+// fish/Source/Scripts/Inventory.js
+import { loot } from './Loot.js';
+import { events } from './Events.js';
 
-		// Required variable names:
-		// inventory variable name: inventory (instance in Game.js)
-		// hotbar variable name: hotbar (exposed array in Game.js)
-		this.hotbar = Array.from({ length: 9 }, () => null);
-		this.inventory = Array.from({ length: 36 }, () => null);
-	}
+export default class Inventory {
+  constructor() {
+    this.hot = new Array(9).fill(null);
+    this.inv = new Array(36).fill(null);
 
-	_cloneStack(stack) {
-		return { id: stack.id, count: stack.count };
-	}
+    this.def = new Map();
+    this.def.set('fishingrod', {
+      id: 'fishingrod',
+      name: 'Fishing Rod',
+      sprite: './Source/Assets/Tools/fishingrod.png',
+      stackable: 1,
+    });
 
-	getStackSizeLimit(itemData) {
-		return Math.max(1, itemData.maxStackSize || 1);
-	}
+    for (const it of loot) {
+      this.def.set(it.id, {
+        id: it.id,
+        name: it.name,
+        sprite: it.sprite,
+        stackable: it.stackable,
+      });
+    }
+  }
 
-	addItem(itemData, count) {
-		// Try hotbar first, then inventory; apply stacking rules.
-		const limit = this.getStackSizeLimit(itemData);
+  getDef(id) {
+    return this.def.get(id) || null;
+  }
 
-		const addTo = (slots) => {
-			// Stack into existing
-			for (let i = 0; i < slots.length; i++) {
-				const s = slots[i];
-				if (!s) continue;
-				if (s.id !== itemData.id) continue;
-				const space = limit - s.count;
-				if (space <= 0) continue;
-				const take = Math.min(space, count);
-				s.count += take;
-				count -= take;
-				if (count <= 0) return true;
-			}
-			// Fill empty
-			for (let i = 0; i < slots.length; i++) {
-				if (slots[i]) continue;
-				const take = Math.min(limit, count);
-				slots[i] = { id: itemData.id, count: take };
-				count -= take;
-				if (count <= 0) return true;
-			}
-			return false;
-		};
+  _maxStack(id) {
+    const d = this.getDef(id);
+    return d ? (d.stackable | 0) : 1;
+  }
 
-		const ok = addTo(this.hotbar) || addTo(this.inventory);
-		this.events.emit("inventory:changed", {});
-		return ok;
-	}
+  _arr(section) {
+    return section === 'hot' ? this.hot : this.inv;
+  }
 
-	findFirstEmpty(slots) {
-		for (let i = 0; i < slots.length; i++) if (!slots[i]) return i;
-		return -1;
-	}
+  get(section, i) {
+    const a = this._arr(section);
+    return a[i] || null;
+  }
 
-	moveStack(sourceGroup, sourceIndex, destGroup) {
-		const srcSlots = sourceGroup === "hotbar" ? this.hotbar : this.inventory;
-		const dstSlots = destGroup === "hotbar" ? this.hotbar : this.inventory;
+  set(section, i, item) {
+    const a = this._arr(section);
+    a[i] = item;
+    events.emit('inv', null);
+  }
 
-		const stack = srcSlots[sourceIndex];
-		if (!stack) return false;
+  clear(section, i) {
+    const a = this._arr(section);
+    a[i] = null;
+    events.emit('inv', null);
+  }
 
-		// Try stack-merge into dst
-		const stackId = stack.id;
-		const dstItemSlots = dstSlots;
+  spawnStart() {
+    this.hot[0] = { id: 'fishingrod', n: 1 };
+    events.emit('inv', null);
+  }
 
-		// Need max stack size; UI can provide itemData but inventory shouldn't depend on UI.
-		// We'll merge only into same id and leave max-size enforcement to addItem-like logic
-		// by using events for item lookup.
-		// Here: do a simple move: first empty OR merge if same id and dst has space (requires limit).
-		// We'll ask for itemData via event synchronously:
-		let itemData = null;
-		this.events.emit("loot:requestItem", { id: stackId, set: (v) => (itemData = v) });
-		if (!itemData) return false;
+  _mergeInto(a, item) {
+    if (!item || item.n <= 0) return 0;
+    const max = this._maxStack(item.id);
+    let left = item.n;
 
-		const limit = this.getStackSizeLimit(itemData);
+    for (let i = 0; i < a.length; i++) {
+      const s = a[i];
+      if (!s) continue;
+      if (s.id !== item.id) continue;
+      if (s.n >= max) continue;
 
-		// Merge into existing
-		for (let i = 0; i < dstItemSlots.length; i++) {
-			const d = dstItemSlots[i];
-			if (!d) continue;
-			if (d.id !== stackId) continue;
-			const space = limit - d.count;
-			if (space <= 0) continue;
-			const take = Math.min(space, stack.count);
-			d.count += take;
-			stack.count -= take;
-			if (stack.count <= 0) srcSlots[sourceIndex] = null;
-			this.events.emit("inventory:changed", {});
-			return true;
-		}
+      const can = Math.min(max - s.n, left);
+      s.n += can;
+      left -= can;
+      if (left <= 0) return 0;
+    }
 
-		// Put into empty
-		const empty = this.findFirstEmpty(dstItemSlots);
-		if (empty === -1) return false;
+    return left;
+  }
 
-		dstItemSlots[empty] = this._cloneStack(stack);
-		srcSlots[sourceIndex] = null;
+  _placeInto(a, item) {
+    if (!item || item.n <= 0) return 0;
+    const max = this._maxStack(item.id);
+    let left = item.n;
 
-		this.events.emit("inventory:changed", {});
-		return true;
-	}
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]) continue;
+      const put = Math.min(max, left);
+      a[i] = { id: item.id, n: put };
+      left -= put;
+      if (left <= 0) return 0;
+    }
 
-	getHotbarSelected(index) {
-		return this.hotbar[index] || null;
-	}
+    return left;
+  }
+
+  addItem(id, n) {
+    const item = { id, n: n | 0 };
+    if (item.n <= 0) return false;
+
+    let left = item.n;
+    left = this._mergeInto(this.hot, { id, n: left });
+    left = this._mergeInto(this.inv, { id, n: left });
+
+    left = this._placeInto(this.hot, { id, n: left });
+    left = this._placeInto(this.inv, { id, n: left });
+
+    events.emit('inv', null);
+    return left === 0;
+  }
+
+  moveBetween(section, i) {
+    const from = section === 'hot' ? this.hot : this.inv;
+    const to = section === 'hot' ? this.inv : this.hot;
+
+    const it = from[i];
+    if (!it) return;
+
+    const leftAfterMerge = this._mergeInto(to, { id: it.id, n: it.n });
+    const leftAfterPlace = this._placeInto(to, { id: it.id, n: leftAfterMerge });
+
+    if (leftAfterPlace === it.n) return; // nothing moved
+
+    if (leftAfterPlace <= 0) {
+      from[i] = null;
+    } else {
+      from[i].n = leftAfterPlace;
+    }
+
+    events.emit('inv', null);
+  }
 }

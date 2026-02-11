@@ -1,180 +1,192 @@
+/* fish/Source/Styles/styles.css */
 :root {
-	--panel: rgba(10, 10, 12, 0.65);
-	--panel-strong: rgba(10, 10, 12, 0.82);
-	--border: rgba(255, 255, 255, 0.12);
-	--text: rgba(255, 255, 255, 0.92);
-	--muted: rgba(255, 255, 255, 0.65);
-	--slot: rgba(255, 255, 255, 0.06);
-	--slot-hi: rgba(255, 220, 120, 0.22);
+	--panel: rgba(0, 0, 0, 0.55);
+	--panel2: rgba(0, 0, 0, 0.35);
+	--slot: rgba(0, 0, 0, 0.35);
+	--slot2: rgba(255, 255, 255, 0.08);
+	--b: rgba(255, 255, 255, 0.25);
+	--w: #eaeaea;
 }
 
 html,
 body {
 	margin: 0;
+	padding: 0;
+	width: 100%;
 	height: 100%;
 	overflow: hidden;
-	background: #0b1220;
-	color: var(--text);
-	font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+	font-family: "Jersey 10", system-ui, sans-serif;
+	background: #000;
 	user-select: none;
 }
 
-#gameRoot {
-	position: relative;
-	width: 100%;
-	height: 100%;
+#ui {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
 }
 
-#gameCanvas {
-	width: 100%;
-	height: 100%;
-	display: block;
+#hint {
+	position: absolute;
+	left: 50%;
+	top: 45%;
+	transform: translate(-50%, -50%);
+	color: var(--w);
+	background: var(--panel);
+	border: 1px solid var(--b);
+	padding: 10px 14px;
+	font-size: 26px;
+	letter-spacing: 0.5px;
 }
 
-/* Crosshair */
 #crosshair {
 	position: absolute;
 	left: 50%;
 	top: 50%;
+	width: 18px;
+	height: 18px;
 	transform: translate(-50%, -50%);
-	font-size: 24px;
-	color: rgba(255, 255, 255, 0.85);
-	text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
-	pointer-events: none;
+	opacity: 0.9;
 }
 
-/* Hint */
-#hint {
+#crosshair .h,
+#crosshair .v {
 	position: absolute;
-	left: 12px;
-	bottom: 12px;
-	padding: 8px 10px;
-	background: rgba(0, 0, 0, 0.25);
-	border: 1px solid rgba(255, 255, 255, 0.10);
-	border-radius: 10px;
-	font-size: 12px;
-	color: var(--muted);
-	pointer-events: none;
+	background: rgba(255, 255, 255, 0.85);
 }
 
-/* Hotbar */
+#crosshair .h {
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: 2px;
+	transform: translateY(-50%);
+}
+
+#crosshair .v {
+	top: 0;
+	bottom: 0;
+	left: 50%;
+	width: 2px;
+	transform: translateX(-50%);
+}
+
 #hotbar {
 	position: absolute;
 	left: 50%;
-	bottom: 24px;
+	bottom: 16px;
 	transform: translateX(-50%);
 	display: grid;
-	grid-template-columns: repeat(9, 52px);
-	gap: 8px;
-	padding: 10px;
-	background: var(--panel);
-	border: 1px solid var(--border);
-	border-radius: 14px;
-	backdrop-filter: blur(6px);
-	pointer-events: auto;
+	grid-template-columns: repeat(9, 54px);
+	gap: 6px;
+	padding: 10px 10px;
+	background: var(--panel2);
+	border: 1px solid var(--b);
+	border-radius: 10px;
+	pointer-events: none;
 }
 
 .slot {
-	width: 52px;
-	height: 52px;
-	border-radius: 12px;
-	border: 1px solid rgba(255, 255, 255, 0.10);
+	width: 54px;
+	height: 54px;
 	background: var(--slot);
-	display: grid;
-	place-items: center;
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 8px;
 	position: relative;
 	overflow: hidden;
 }
 
-.slot.selected {
-	outline: 2px solid rgba(255, 220, 120, 0.65);
-	background: var(--slot-hi);
+.slot.sel {
+	outline: 2px solid rgba(255, 255, 255, 0.75);
+	outline-offset: 1px;
 }
 
 .slot img {
-	width: 38px;
-	height: 38px;
-	image-rendering: pixelated;
-}
-
-.count {
-	position: absolute;
-	right: 6px;
-	bottom: 5px;
-	font-size: 12px;
-	color: rgba(255, 255, 255, 0.95);
-	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
-}
-
-/* Inventory panel */
-#inventory {
 	position: absolute;
 	left: 50%;
 	top: 50%;
 	transform: translate(-50%, -50%);
-	width: min(760px, calc(100% - 40px));
-	background: var(--panel-strong);
-	border: 1px solid var(--border);
-	border-radius: 16px;
-	padding: 14px;
-	backdrop-filter: blur(10px);
+	width: 42px;
+	height: 42px;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
+
+.slot .cnt {
+	position: absolute;
+	right: 6px;
+	bottom: 4px;
+	color: var(--w);
+	font-size: 18px;
+	text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85);
+}
+
+#inv {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	pointer-events: auto;
 }
 
-#inventory.hidden {
+#inv.hide {
 	display: none;
 }
 
-.inventoryTitle {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin-bottom: 12px;
-	padding: 4px 6px;
-}
-
-.inventoryTitle .label {
-	font-weight: 700;
-	letter-spacing: 0.3px;
-}
-
-.inventoryTitle .tip {
-	color: var(--muted);
-	font-size: 12px;
-}
-
-.inventoryGrid {
-	display: grid;
-	grid-template-columns: repeat(9, 60px);
-	gap: 10px;
-	padding: 10px;
+#inv .panel {
+	width: min(720px, 92vw);
+	background: var(--panel);
+	border: 1px solid var(--b);
 	border-radius: 14px;
-	background: rgba(255, 255, 255, 0.04);
-	border: 1px solid rgba(255, 255, 255, 0.08);
+	padding: 14px 14px 18px 14px;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
 }
 
-/* Countdown above bobber */
-#bobberCountdown {
-	position: absolute;
-	transform: translate(-50%, -100%);
-	padding: 6px 8px;
+#inv .title {
+	color: var(--w);
+	font-size: 34px;
+	margin: 2px 6px 10px 6px;
+}
+
+#grid {
+	display: grid;
+	grid-template-columns: repeat(9, 58px);
+	gap: 8px;
+	padding: 8px;
+	background: rgba(0, 0, 0, 0.22);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 12px;
+}
+
+#grid .slot {
+	width: 58px;
+	height: 58px;
 	border-radius: 10px;
+	cursor: pointer;
 	background: rgba(0, 0, 0, 0.35);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	font-size: 13px;
+	border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+#grid .slot:hover {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+#bob {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform: translate(-50%, -100%);
+	background: rgba(0, 0, 0, 0.45);
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	border-radius: 10px;
+	padding: 6px 10px;
+	font-size: 24px;
+	color: #00ff00;
 	pointer-events: none;
 	white-space: nowrap;
 }
 
-#bobberCountdown.hidden {
-	display: none;
-}
-
-/* When inventory is open, show cursor */
-body.inventoryOpen {
-	cursor: default;
-}
-
-body.inventoryOpen #crosshair {
+#bob.hide {
 	display: none;
 }

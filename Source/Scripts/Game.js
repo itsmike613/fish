@@ -1,95 +1,124 @@
-import { Events } from "./Events.js";
-import { createState } from "./State.js";
-import { Renderer } from "./Renderer.js";
-import { World } from "./World.js";
-import { Player } from "./Player.js";
-import { UI } from "./UI.js";
-import { Inventory } from "./Inventory.js";
-import { loot } from "./Loot.js";
-import { Fishing } from "./Fishing.js";
-import { Birds } from "./Birds.js";
+// fish/Source/Scripts/Game.js
+import Renderer from './Renderer.js';
+import World from './World.js';
+import Player from './Player.js';
+import UI from './UI.js';
+import Inventory from './Inventory.js';
+import Fishing from './Fishing.js';
+import { get, set, toggleInv, setSlot } from './State.js';
 
-export class Game {
+export default class Game {
   constructor() {
-    this.canvas = document.getElementById("gameCanvas");
+    this.renderer = new Renderer();
+    this.world = new World(this.renderer.scene);
+    this.inv = new Inventory();
+    this.player = new Player(this.renderer.camera, this.world);
+    this.fishing = new Fishing(this.renderer.scene, this.renderer.camera, this.world, this.inv);
+    this.ui = new UI(this.inv, this.renderer, this.fishing);
 
-    this.events = new Events();
-    this.state = createState();
-
-    this.renderer = new Renderer(this.canvas);
-    this.world = new World(this.renderer);
-
-    // inventory variable name: inventory
-    const inventory = new Inventory(this.events);
-    this.inventory = inventory;
-
-    // hotbar variable name: hotbar
-    const hotbar = inventory.hotbar;
-    this.hotbar = hotbar;
-
-    this.ui = new UI(this.events, this.state, this.inventory);
-
-    this.player = new Player(this.renderer, this.events, this.state, this.world);
-
-    this.fishing = new Fishing(
-      this.renderer,
-      this.world,
-      this.player,
-      this.events,
-      this.state,
-      this.inventory
-    );
-
-    this.birds = new Birds(this.renderer, this.world);
-
-    this._bootstrapLoot();
-    this._bootstrapStartingItems();
-  }
-
-  _bootstrapLoot() {
-    // Notify systems loot is available
-    this.events.emit("loot:loaded", { loot });
-  }
-
-  _bootstrapStartingItems() {
-    // Player spawns with fishing rod in hotbar slot 1 (index 0)
-    this.inventory.hotbar[0] = { id: "fishingrod", count: 1 };
-    this.events.emit("inventory:changed", {});
-  }
-
-  start() {
-    let last = performance.now();
-
-    const loop = (nowMs) => {
-      const now = nowMs * 0.001;
-      const dt = Math.min(0.05, now - (last * 0.001));
-      last = nowMs;
-
-      this.state.time.now = now;
-      this.state.time.dt = dt;
-
-      // Update world visuals
-      this.world.update(dt);
-
-      // Player movement + camera
-      this.player.update(dt);
-
-      // Underwater look (cyan) without visible sides/bottom
-      const camY = this.renderer.camera.position.y;
-      this.renderer.setUnderwater(camY < this.world.waterLevel + 0.05);
-
-      // Fishing
-      this.fishing.update(dt);
-
-      // Birds
-      this.birds.update(dt, now);
-
-      // Render
-      this.renderer.render();
-
-      requestAnimationFrame(loop);
+    this.keys = {
+      w: false, a: false, s: false, d: false,
+      ctrl: false,
     };
 
-    requestAnimationFrame(loop);
+    this._last = performance.now() / 1000;
+
+    this._bind();
+  }
+
+  async start() {
+    await this.world.init();
+    this.renderer.resize();
+    this.inv.spawnStart();
+    this._loop();
+  }
+
+  _bind() {
+    // prevent context menu
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // click to lock pointer (only when inventory closed)
+    this.renderer.r.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 0) {
+        if (!get('invOpen') && !get('pointerLocked')) this.renderer.lockPointer();
+      }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!get('pointerLocked')) return;
+      if (get('invOpen')) return;
+      this.player.onMouseMove(e.movementX || 0, e.movementY || 0);
+    });
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button !== 2) return;
+      if (!get('pointerLocked')) return;
+      if (get('invOpen')) return;
+
+      const slot = get('slot');
+      this.fishing.tryCastOrReel(performance.now() / 1000, slot);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const code = e.code;
+
+      if (code === 'KeyE') {
+        toggleInv();
+        if (get('invOpen')) {
+          this.renderer.unlockPointer();
+        }
+        return;
+      }
+
+      if (get('invOpen')) return;
+
+      if (code === 'KeyW') this.keys.w = true;
+      else if (code === 'KeyA') this.keys.a = true;
+      else if (code === 'KeyS') this.keys.s = true;
+      else if (code === 'KeyD') this.keys.d = true;
+      else if (code === 'ControlLeft' || code === 'ControlRight') this.keys.ctrl = true;
+      else if (code === 'Space') this.player.setJumpPressed(true);
+      else if (code.startsWith('Digit')) {
+        const n = (code === 'Digit0') ? 10 : parseInt(code.slice(5), 10);
+        if (Number.isFinite(n) && n >= 1 && n <= 9) setSlot(n - 1);
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      const code = e.code;
+
+      if (code === 'KeyW') this.keys.w = false;
+      else if (code === 'KeyA') this.keys.a = false;
+      else if (code === 'KeyS') this.keys.s = false;
+      else if (code === 'KeyD') this.keys.d = false;
+      else if (code === 'ControlLeft' || code === 'ControlRight') this.keys.ctrl = false;
+    });
+
+    // keep key state sane on blur
+    window.addEventListener('blur', () => {
+      this.keys.w = this.keys.a = this.keys.s = this.keys.d = false;
+      this.keys.ctrl = false;
+    });
+
+    // keep hint visibility accurate on pointer lock changes
+    document.addEventListener('pointerlockchange', () => {
+      set('pointerLocked', document.pointerLockElement === this.renderer.r.domElement);
+    });
+  }
+
+  _loop() {
+    const now = performance.now() / 1000;
+    const dt = Math.min(0.05, Math.max(0.0, now - this._last));
+    this._last = now;
+
+    const allowMove = get('pointerLocked') && !get('invOpen');
+
+    this.world.update(dt);
+    this.player.update(dt, this.keys, allowMove);
+    this.fishing.update(dt, now);
+    this.ui.update();
+
+    this.renderer.render();
+    requestAnimationFrame(() => this._loop());
   }
 }
