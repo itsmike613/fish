@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Fish</title>
+	<link rel="stylesheet" href="./Source/Styles/styles.css" />
+</head>
+
+<body>
+	<canvas id="game"></canvas>
+
+	<!-- UI root (DOM-only, no Three.js imports) -->
+	<div id="ui-root">
+		<div id="crosshair" aria-hidden="true">+</div>
+
+		<div id="hotbar" class="panel">
+			<div class="panel-title">Hotbar</div>
+			<div id="hotbar-slots" class="slots slots-9"></div>
+		</div>
+
+		<div id="inventory" class="panel hidden">
+			<div class="panel-title">Inventory</div>
+			<div class="hint">Press <b>E</b> to close</div>
+			<div id="inventory-slots" class="slots slots-9x4"></div>
+		</div>
+
+		<div id="toast" class="toast hidden"></div>
+	</div>
+
+	<script type="module" src="./Source/Scripts/main.js"></script>
+</body>
+
+</html>
