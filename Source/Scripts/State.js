@@ -1,32 +1,27 @@
-export function makeState() {
+export function createState() {
+	// Shared runtime state slices (future-proof: add Save/Shop/Audio later via events + new slices)
 	return {
-		ui: {
-			invOpen: false,
-			hotSel: 0,
-			cursor: true
+		time: {
+			now: 0,
+			dt: 0
 		},
-		world: {
-			tile: 1,
-			islandR: 6,
-			shorePad: 0.15,
-			waterY: 0
+		ui: {
+			inventoryOpen: false,
+			selectedHotbarIndex: 0
+		},
+		input: {
+			pointerLocked: false
 		},
 		player: {
-			pos: { x: 0, y: 1.7, z: 0 },
-			vel: { x: 0, y: 0, z: 0 },
-			grounded: true,
-			sprint: false
+			position: { x: 0, y: 0, z: 0 }
 		},
-		inv: {
-			hot: Array.from({ length: 9 }, () => null),
-			bag: Array.from({ length: 36 }, () => null),
-		},
-		fishing: {
+		// fishing state variable name: fish
+		fish: {
 			cast: false,
-			bite: false,
-			t: 0,
-			showCd: false,
-			cd: 0
+			biteActive: false,
+			timer: 0,
+			wait: 0,
+			lastCountdownVisible: false
 		}
 	};
 }

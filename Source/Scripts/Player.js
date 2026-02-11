@@ -1,133 +1,162 @@
-import { THREE } from './Renderer.js';
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 export class Player {
-	constructor(state, events, renderer, world) {
-		this.s = state;
-		this.e = events;
-		this.ren = renderer;
+	constructor(renderer, events, state, world) {
+		this.renderer = renderer;
+		this.events = events;
+		this.state = state;
 		this.world = world;
 
-		this.yaw = 0;
+		this.camera = renderer.camera;
+		this.camera.position.set(0, 1.7, 0);
+
 		this.pitch = 0;
+		this.yaw = 0;
 
-		this.keys = new Set();
-		this.locked = false;
-		this.enabled = true;
+		this.velocity = new THREE.Vector3(0, 0, 0);
 
-		this.speed = 4.2;
-		this.sprint = 6.4;
-		this.jumpV = 6.0;
-		this.g = 18.5;
+		this.move = {
+			forward: false,
+			backward: false,
+			left: false,
+			right: false,
+			sprint: false,
+			jump: false
+		};
 
-		this._bind();
+		this.settings = {
+			walkSpeed: 3.6,
+			sprintSpeed: 6.2,
+			jumpVelocity: 5.2,
+			gravity: 14.5,
+			mouseSensitivity: 0.0022
+		};
+
+		this.onGround = false;
+
+		this._bindInput();
+		this._bindPointerLock(renderer.canvas);
 	}
 
-	_bind() {
-		const canvas = this.ren.r.domElement;
-
-		canvas.addEventListener('click', () => {
-			if (!this.s.ui.invOpen) canvas.requestPointerLock();
+	_bindPointerLock(canvas) {
+		canvas.addEventListener("click", () => {
+			if (this.state.ui.inventoryOpen) return;
+			canvas.requestPointerLock();
 		});
 
-		document.addEventListener('pointerlockchange', () => {
-			this.locked = (document.pointerLockElement === canvas);
+		document.addEventListener("pointerlockchange", () => {
+			const locked = document.pointerLockElement === canvas;
+			this.state.input.pointerLocked = locked;
+			this.events.emit("pointerlock:change", { locked });
 		});
 
-		document.addEventListener('mousemove', (ev) => {
-			if (!this.locked || this.s.ui.invOpen) return;
-			const sx = ev.movementX || 0;
-			const sy = ev.movementY || 0;
+		document.addEventListener("mousemove", (e) => {
+			if (!this.state.input.pointerLocked) return;
+			if (this.state.ui.inventoryOpen) return;
 
-			this.yaw -= sx * 0.0022;
-			this.pitch -= sy * 0.0022;
-			const lim = Math.PI / 2 - 0.02;
-			this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
+			this.yaw -= e.movementX * this.settings.mouseSensitivity;
+			this.pitch -= e.movementY * this.settings.mouseSensitivity;
 
-			this._applyCamRot();
-		});
-
-		window.addEventListener('keydown', (ev) => {
-			this.keys.add(ev.code);
-			if (ev.code === 'Space') ev.preventDefault();
-		});
-
-		window.addEventListener('keyup', (ev) => {
-			this.keys.delete(ev.code);
-		});
-
-		this.e.on('ui:cursor', (on) => {
-			// when inventory open -> show cursor, stop mouse look + movement
-			this.enabled = !on;
-			if (on && this.locked) document.exitPointerLock();
+			const maxPitch = Math.PI / 2 - 0.02;
+			this.pitch = Math.max(-maxPitch, Math.min(maxPitch, this.pitch));
 		});
 	}
 
-	_applyCamRot() {
-		this.ren.cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+	_bindInput() {
+		const setKey = (code, down) => {
+			if (this.state.ui.inventoryOpen) return;
+
+			if (code === "KeyW") this.move.forward = down;
+			if (code === "KeyS") this.move.backward = down;
+			if (code === "KeyA") this.move.left = down;
+			if (code === "KeyD") this.move.right = down;
+			if (code === "ControlLeft" || code === "ControlRight") this.move.sprint = down;
+
+			if (code === "Space") {
+				if (down) this.move.jump = true;
+			}
+		};
+
+		window.addEventListener("keydown", (e) => setKey(e.code, true));
+		window.addEventListener("keyup", (e) => setKey(e.code, false));
+	}
+
+	getForwardVector() {
+		const v = new THREE.Vector3(0, 0, -1);
+		v.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+		return v;
+	}
+
+	getRightVector() {
+		const v = new THREE.Vector3(1, 0, 0);
+		v.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+		return v;
+	}
+
+	getPosition() {
+		return this.camera.position;
 	}
 
 	update(dt) {
-		// keep camera synced to state
-		const p = this.s.player.pos;
-		const v = this.s.player.vel;
+		// Apply camera rotation
+		this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
 
-		if (!this.enabled) {
-			// still clamp to island if somehow needed
-			this.world.clampToIsland(p);
-			this.ren.cam.position.set(p.x, p.y, p.z);
+		if (this.state.ui.inventoryOpen) {
+			this.move.jump = false;
+			this.velocity.x = 0;
+			this.velocity.z = 0;
 			return;
 		}
 
-		const forward = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0);
-		const strafe = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0);
+		const speed = this.move.sprint ? this.settings.sprintSpeed : this.settings.walkSpeed;
 
-		const sprinting = this.keys.has('ControlLeft') || this.keys.has('ControlRight');
-		const sp = sprinting ? this.sprint : this.speed;
+		const forward = this.getForwardVector();
+		const right = this.getRightVector();
 
-		// planar movement in camera yaw space
-		const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-		let mx = 0, mz = 0;
-		if (forward || strafe) {
-			mx = (strafe * cos + forward * sin);
-			mz = (forward * cos - strafe * sin);
-			const len = Math.hypot(mx, mz) || 1;
-			mx /= len; mz /= len;
+		const dir = new THREE.Vector3(0, 0, 0);
+		if (this.move.forward) dir.add(forward);
+		if (this.move.backward) dir.sub(forward);
+		if (this.move.right) dir.add(right);
+		if (this.move.left) dir.sub(right);
+
+		if (dir.lengthSq() > 0) dir.normalize();
+
+		// Horizontal movement (velocity-like but minimal allocations)
+		const desiredX = dir.x * speed;
+		const desiredZ = dir.z * speed;
+
+		const pos = this.camera.position;
+		const nextX = pos.x + desiredX * dt;
+		const nextZ = pos.z + desiredZ * dt;
+
+		const clamped = this.world.clampToIsland(nextX, nextZ, pos.x, pos.z);
+		pos.x = clamped.x;
+		pos.z = clamped.z;
+
+		// Gravity / jump
+		this.velocity.y -= this.settings.gravity * dt;
+
+		const groundY = this.world.groundLevel + 1.7;
+		const nextY = pos.y + this.velocity.y * dt;
+
+		if (nextY <= groundY) {
+			pos.y = groundY;
+			this.velocity.y = 0;
+			this.onGround = true;
+		} else {
+			pos.y = nextY;
+			this.onGround = false;
 		}
 
-		v.x = mx * sp;
-		v.z = mz * sp;
-
-		// jump
-		if (this.s.player.grounded && this.keys.has('Space')) {
-			v.y = this.jumpV;
-			this.s.player.grounded = false;
+		if (this.move.jump && this.onGround) {
+			this.velocity.y = this.settings.jumpVelocity;
+			this.onGround = false;
 		}
+		this.move.jump = false;
 
-		// gravity
-		v.y -= this.g * dt;
-
-		// integrate
-		p.x += v.x * dt;
-		p.y += v.y * dt;
-		p.z += v.z * dt;
-
-		// ground plane
-		const eye = 1.7;
-		if (p.y < eye) {
-			p.y = eye;
-			v.y = 0;
-			this.s.player.grounded = true;
-		}
-
-		// shoreline boundary
-		this.world.clampToIsland(p);
-
-		this.ren.cam.position.set(p.x, p.y, p.z);
-	}
-
-	getRay() {
-		const ray = new THREE.Raycaster();
-		ray.setFromCamera(new THREE.Vector2(0, 0), this.ren.cam);
-		return ray.ray;
+		// Write to shared state
+		this.state.player.position.x = pos.x;
+		this.state.player.position.y = pos.y;
+		this.state.player.position.z = pos.z;
 	}
 }

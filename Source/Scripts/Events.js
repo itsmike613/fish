@@ -1,22 +1,24 @@
 export class Events {
 	constructor() {
-		this.m = new Map();
+		this.listeners = new Map();
 	}
-	on(ev, fn) {
-		let a = this.m.get(ev);
-		if (!a) { a = []; this.m.set(ev, a); }
-		a.push(fn);
-		return () => this.off(ev, fn);
+
+	on(name, fn) {
+		if (!this.listeners.has(name)) this.listeners.set(name, new Set());
+		this.listeners.get(name).add(fn);
+		return () => this.off(name, fn);
 	}
-	off(ev, fn) {
-		const a = this.m.get(ev);
-		if (!a) return;
-		const i = a.indexOf(fn);
-		if (i >= 0) a.splice(i, 1);
+
+	off(name, fn) {
+		const set = this.listeners.get(name);
+		if (!set) return;
+		set.delete(fn);
+		if (set.size === 0) this.listeners.delete(name);
 	}
-	emit(ev, data) {
-		const a = this.m.get(ev);
-		if (!a) return;
-		for (let i = 0; i < a.length; i++) a[i](data);
+
+	emit(name, payload) {
+		const set = this.listeners.get(name);
+		if (!set) return;
+		for (const fn of set) fn(payload);
 	}
 }

@@ -1,73 +1,95 @@
-import { Events } from './Events.js';
-import { makeState } from './State.js';
-import { Renderer } from './Renderer.js';
-import { World } from './World.js';
-import { Player } from './Player.js';
-import { Inventory } from './Inventory.js';
-import { UI } from './UI.js';
-import { Loot } from './Loot.js';
-import { Fishing } from './Fishing.js';
-import { Birds } from './Birds.js';
+import { Events } from "./Events.js";
+import { createState } from "./State.js";
+import { Renderer } from "./Renderer.js";
+import { World } from "./World.js";
+import { Player } from "./Player.js";
+import { UI } from "./UI.js";
+import { Inventory } from "./Inventory.js";
+import { loot } from "./Loot.js";
+import { Fishing } from "./Fishing.js";
+import { Birds } from "./Birds.js";
 
 export class Game {
-	constructor() {
-		this.e = new Events();
-		this.s = makeState();
+  constructor() {
+    this.canvas = document.getElementById("gameCanvas");
 
-		this.ren = new Renderer(this.s, this.e);
-		this.world = new World(this.s, this.e, this.ren);
+    this.events = new Events();
+    this.state = createState();
 
-		this.inv = new Inventory(this.s, this.e, Loot);
+    this.renderer = new Renderer(this.canvas);
+    this.world = new World(this.renderer);
 
-		// Starting item: fishing rod in hotbar slot 1 (index 0)
-		this.inv.byId.set('fishingrod', {
-			name: 'Fishing Rod',
-			description: 'Simple but reliable.',
-			id: 'fishingrod',
-			sprite: 'Source/Assets/Tools/fishingrod.png',
-			rarity: 'common',
-			weight: '—',
-			sell: 0,
-			category: 'tool',
-			maxStack: 1
-		});
-		this.s.inv.hot[0] = { id: 'fishingrod', n: 1 };
+    // inventory variable name: inventory
+    const inventory = new Inventory(this.events);
+    this.inventory = inventory;
 
-		this.ui = new UI(this.s, this.e, this.inv, [...Loot, this.inv.byId.get('fishingrod')]);
+    // hotbar variable name: hotbar
+    const hotbar = inventory.hotbar;
+    this.hotbar = hotbar;
 
-		this.player = new Player(this.s, this.e, this.ren, this.world);
+    this.ui = new UI(this.events, this.state, this.inventory);
 
-		this.fish = new Fishing(this.s, this.e, this.ren, this.world, this.player, this.inv, Loot);
+    this.player = new Player(this.renderer, this.events, this.state, this.world);
 
-		this.birds = new Birds(this.s, this.e, this.ren);
+    this.fishing = new Fishing(
+      this.renderer,
+      this.world,
+      this.player,
+      this.events,
+      this.state,
+      this.inventory
+    );
 
-		this._last = 0;
+    this.birds = new Birds(this.renderer, this.world);
 
-		// clean cross-system toggles via events (future Save/Shop/Audio safe)
-		this.e.on('ui:toggleInv', () => this.e.emit('ui:inv', !this.s.ui.invOpen));
-	}
+    this._bootstrapLoot();
+    this._bootstrapStartingItems();
+  }
 
-	start() {
-		requestAnimationFrame((t) => this._loop(t));
-	}
+  _bootstrapLoot() {
+    // Notify systems loot is available
+    this.events.emit("loot:loaded", { loot });
+  }
 
-	_loop(t) {
-		const dt = Math.min(0.033, (t - this._last) / 1000 || 0);
-		this._last = t;
+  _bootstrapStartingItems() {
+    // Player spawns with fishing rod in hotbar slot 1 (index 0)
+    this.inventory.hotbar[0] = { id: "fishingrod", count: 1 };
+    this.events.emit("inventory:changed", {});
+  }
 
-		// update
-		this.world.update(dt);
-		this.player.update(dt);
-		this.fish.update(dt);
-		this.birds.update(dt);
+  start() {
+    let last = performance.now();
 
-		// underwater look (player can't enter water, but keeps the requirement + future-proof)
-		const under = this.ren.cam.position.y < this.s.world.waterY + 0.05;
-		this.ren.setFog(under);
+    const loop = (nowMs) => {
+      const now = nowMs * 0.001;
+      const dt = Math.min(0.05, now - (last * 0.001));
+      last = nowMs;
 
-		// render
-		this.ren.render();
+      this.state.time.now = now;
+      this.state.time.dt = dt;
 
-		requestAnimationFrame((tt) => this._loop(tt));
-	}
+      // Update world visuals
+      this.world.update(dt);
+
+      // Player movement + camera
+      this.player.update(dt);
+
+      // Underwater look (cyan) without visible sides/bottom
+      const camY = this.renderer.camera.position.y;
+      this.renderer.setUnderwater(camY < this.world.waterLevel + 0.05);
+
+      // Fishing
+      this.fishing.update(dt);
+
+      // Birds
+      this.birds.update(dt, now);
+
+      // Render
+      this.renderer.render();
+
+      requestAnimationFrame(loop);
+    };
+
+    requestAnimationFrame(loop);
+  }
 }

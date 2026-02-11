@@ -1,76 +1,75 @@
-import { THREE } from './Renderer.js';
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 export class Birds {
-	constructor(state, events, renderer) {
-		this.s = state;
-		this.e = events;
-		this.ren = renderer;
+  constructor(renderer, world) {
+    this.scene = renderer.scene;
+    this.world = world;
 
-		this.grp = new THREE.Group();
-		this.ren.scene.add(this.grp);
+    this.birds = [];
+    this.spawnTimer = 0;
 
-		this.b = [];
-		this.t = 0;
+    // Reuse geometry/material
+    this.birdGeometry = new THREE.PlaneGeometry(0.5, 0.25, 1, 1);
+    this.birdMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide
+    });
+  }
 
-		// extremely lightweight: 2 simple "V" birds as lines
-		for (let i = 0; i < 2; i++) {
-			const geo = new THREE.BufferGeometry();
-			geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-				-0.12, 0, 0,
-				0.00, 0.05, 0,
-				0.12, 0, 0
-			]), 3));
-			const mat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
-			const m = new THREE.Line(geo, mat);
-			m.visible = false;
-			this.grp.add(m);
+  _spawnBird() {
+    if (this.birds.length >= 2) return;
 
-			this.b.push({
-				m,
-				a: 0,
-				r: 22 + Math.random() * 20,
-				y: 10 + Math.random() * 6,
-				sp: 0.25 + Math.random() * 0.25,
-				on: 0
-			});
-		}
-	}
+    const bird = new THREE.Mesh(this.birdGeometry, this.birdMaterial);
+    bird.position.set(
+      (Math.random() * 2 - 1) * 18,
+      6 + Math.random() * 2,
+      (Math.random() * 2 - 1) * 18
+    );
 
-	update(dt) {
-		this.t += dt;
+    bird.userData = {
+      angle: Math.random() * Math.PI * 2,
+      radius: 18 + Math.random() * 10,
+      speed: 0.35 + Math.random() * 0.35,
+      height: bird.position.y,
+      flap: Math.random() * 10
+    };
 
-		// occasionally toggle on
-		for (const x of this.b) {
-			x.on -= dt;
-			if (x.on <= 0 && Math.random() < dt * 0.05) {
-				x.on = 6 + Math.random() * 10;
-				x.m.visible = true;
-				x.a = Math.random() * Math.PI * 2;
-				x.r = 28 + Math.random() * 30;
-				x.y = 10 + Math.random() * 8;
-			}
+    this.scene.add(bird);
+    this.birds.push(bird);
+  }
 
-			if (x.m.visible) {
-				x.a += dt * x.sp;
-				const cx = this.ren.cam.position.x;
-				const cz = this.ren.cam.position.z;
+  update(dt, now) {
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) {
+      // occasional
+      this.spawnTimer = 6 + Math.random() * 7;
+      if (Math.random() < 0.7) this._spawnBird();
+    }
 
-				x.m.position.set(
-					cx + Math.cos(x.a) * x.r,
-					x.y,
-					cz + Math.sin(x.a) * x.r
-				);
+    for (let i = this.birds.length - 1; i >= 0; i--) {
+      const bird = this.birds[i];
+      const d = bird.userData;
 
-				x.m.lookAt(cx, x.y, cz);
+      d.angle += d.speed * dt;
 
-				// flap via tiny scale pulse
-				const f = 1 + Math.sin(performance.now() * 0.02) * 0.18;
-				x.m.scale.set(f, f, f);
+      const x = Math.cos(d.angle) * d.radius;
+      const z = Math.sin(d.angle) * d.radius;
+      bird.position.x = x;
+      bird.position.z = z;
+      bird.position.y = d.height + Math.sin(now * 6 + d.flap) * 0.08;
 
-				if (x.on <= 0) {
-					x.m.visible = false;
-				}
-			}
-		}
-	}
+      // face direction
+      bird.rotation.y = -d.angle + Math.PI / 2;
+      bird.rotation.z = Math.sin(now * 10 + d.flap) * 0.25;
+
+      // despawn if extremely far (rare)
+      const rr = Math.sqrt(x * x + z * z);
+      if (rr > 80) {
+        this.scene.remove(bird);
+        this.birds.splice(i, 1);
+      }
+    }
+  }
 }

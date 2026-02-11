@@ -1,4 +1,36 @@
-export const Loot = [
+// Loot.js = PURE DATA only (no logic)
+// Required variable name: loot
+
+export const loot = [
+	{
+		name: "Fishing Rod",
+		description: "A simple rod for casting into the sea.",
+		id: "fishingrod",
+		sprite: "./Source/Assets/Tools/fishingrod.png",
+		rarity: "common",
+		weight: "—",
+		sellValue: "$0",
+		category: "tool",
+		maxStackSize: 1
+	},
+
+	// Example item: Salmon (exact fields requested)
+	{
+		name: "Salmon",
+		description: "A strong, swift fighter with firm pink meat.",
+		id: "salmon",
+		sprite: "./Source/Assets/Catches/salmon.png",
+		rarity: "common",
+		weight: "10lb",
+		sellValue: "$15",
+		category: "fish",
+		maxStackSize: 8
+	}
+];
+
+
+
+/*export const Loot = [
 	{
 		name: 'Salmon',
 		description: 'A strong, swift fighter with firm pink meat.',
@@ -32,4 +64,4 @@ export const Loot = [
 		category: 'treasure',
 		maxStack: 16
 	}
-];
+];*/
