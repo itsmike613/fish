@@ -9,25 +9,23 @@
 </head>
 
 <body>
-	<canvas id="game"></canvas>
+	<div id="hud">
+		<div id="crosshair"></div>
 
-	<!-- UI root (DOM-only, no Three.js imports) -->
-	<div id="ui-root">
-		<div id="crosshair" aria-hidden="true">+</div>
+		<div id="hotbar" class="panel"></div>
 
-		<div id="hotbar" class="panel">
-			<div class="panel-title">Hotbar</div>
-			<div id="hotbar-slots" class="slots slots-9"></div>
+		<div id="invWrap" class="hidden">
+			<div id="invPanel" class="panel">
+				<div class="invTitle">Inventory</div>
+				<div id="invGrid"></div>
+				<div class="invHint">Click items to move between hotbar ↔ inventory. Press E to close.</div>
+			</div>
 		</div>
 
-		<div id="inventory" class="panel hidden">
-			<div class="panel-title">Inventory</div>
-			<div class="hint">Press <b>E</b> to close</div>
-			<div id="inventory-slots" class="slots slots-9x4"></div>
-		</div>
-
-		<div id="toast" class="toast hidden"></div>
+		<div id="bobberTag" class="hidden"></div>
 	</div>
+
+	<canvas id="c"></canvas>
 
 	<script type="module" src="./Source/Scripts/main.js"></script>
 </body>

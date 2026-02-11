@@ -1,128 +1,95 @@
 export class Inventory {
-	/**
-	 * @param {object} opts
-	 * @param {number} opts.hotbarSize
-	 * @param {number} opts.bagSize
-	 * @param {(id:string)=>any} opts.getItemDef
-	 */
-	constructor({ hotbarSize = 9, bagSize = 36, getItemDef }) {
-		this.hotbarSize = hotbarSize;
-		this.bagSize = bagSize;
-		this.getItemDef = getItemDef;
-
-		/** @type {{id:string, count:number}[]} */
-		this.hotbar = Array.from({ length: hotbarSize }, () => ({ id: "", count: 0 }));
-		/** @type {{id:string, count:number}[]} */
-		this.bag = Array.from({ length: bagSize }, () => ({ id: "", count: 0 }));
+	constructor(state, events, loot) {
+		this.s = state;
+		this.e = events;
+		this.byId = new Map(loot.map(x => [x.id, x]));
 	}
 
-	getSlot(area, index) {
-		const arr = area === "hotbar" ? this.hotbar : this.bag;
-		return arr[index];
+	def(id) { return this.byId.get(id); }
+
+	getSlot(kind, i) {
+		return kind === 'hot' ? this.s.inv.hot[i] : this.s.inv.bag[i];
 	}
 
-	setSlot(area, index, slot) {
-		const arr = area === "hotbar" ? this.hotbar : this.bag;
-		arr[index].id = slot.id;
-		arr[index].count = slot.count;
+	setSlot(kind, i, v) {
+		if (kind === 'hot') this.s.inv.hot[i] = v;
+		else this.s.inv.bag[i] = v;
+		this.e.emit('inv:changed');
 	}
 
-	/**
-	 * Add items with stacking rules.
-	 * @returns {{added:number, remaining:number}}
-	 */
-	addItem(id, count) {
-		let remaining = count;
-		const def = this.getItemDef(id);
-		const maxStack = def?.maxStack ?? 1;
-
-		// 1) Fill existing stacks (hotbar then bag)
-		remaining = this._fillExisting(this.hotbar, id, remaining, maxStack);
-		remaining = this._fillExisting(this.bag, id, remaining, maxStack);
-
-		// 2) Fill empty slots (hotbar then bag)
-		remaining = this._fillEmpty(this.hotbar, id, remaining, maxStack);
-		remaining = this._fillEmpty(this.bag, id, remaining, maxStack);
-
-		return { added: count - remaining, remaining };
+	firstEmpty(kind) {
+		const a = kind === 'hot' ? this.s.inv.hot : this.s.inv.bag;
+		for (let i = 0; i < a.length; i++) if (!a[i]) return i;
+		return -1;
 	}
 
-	_fillExisting(arr, id, remaining, maxStack) {
-		if (remaining <= 0) return 0;
-		for (let i = 0; i < arr.length; i++) {
-			const s = arr[i];
-			if (s.id !== id || s.count <= 0) continue;
-			const space = maxStack - s.count;
-			if (space <= 0) continue;
-			const take = remaining < space ? remaining : space;
-			s.count += take;
-			remaining -= take;
-			if (remaining <= 0) break;
-		}
-		return remaining;
-	}
+	addTo(kind, id, n) {
+		const def = this.def(id);
+		if (!def) return n;
 
-	_fillEmpty(arr, id, remaining, maxStack) {
-		if (remaining <= 0) return 0;
-		for (let i = 0; i < arr.length; i++) {
-			const s = arr[i];
-			if (s.count > 0) continue;
-			const take = remaining < maxStack ? remaining : maxStack;
-			s.id = id;
-			s.count = take;
-			remaining -= take;
-			if (remaining <= 0) break;
-		}
-		return remaining;
-	}
+		const a = kind === 'hot' ? this.s.inv.hot : this.s.inv.bag;
 
-	/**
-	 * Click-to-move between hotbar and bag.
-	 * One click moves as much as possible to the other area (no drag/drop).
-	 */
-	moveBetween(areaFrom, indexFrom) {
-		const fromArr = areaFrom === "hotbar" ? this.hotbar : this.bag;
-		const toArr = areaFrom === "hotbar" ? this.bag : this.hotbar;
-
-		const src = fromArr[indexFrom];
-		if (!src || src.count <= 0 || !src.id) return { moved: 0 };
-
-		const def = this.getItemDef(src.id);
-		const maxStack = def?.maxStack ?? 1;
-
-		let remaining = src.count;
-
-		// Fill existing stacks in destination
-		for (let i = 0; i < toArr.length; i++) {
-			const s = toArr[i];
-			if (s.id !== src.id || s.count <= 0) continue;
-			const space = maxStack - s.count;
-			if (space <= 0) continue;
-			const take = remaining < space ? remaining : space;
-			s.count += take;
-			remaining -= take;
-			if (remaining <= 0) break;
-		}
-
-		// Fill empty slots in destination
-		if (remaining > 0) {
-			for (let i = 0; i < toArr.length; i++) {
-				const s = toArr[i];
-				if (s.count > 0) continue;
-				const take = remaining < maxStack ? remaining : maxStack;
-				s.id = src.id;
-				s.count = take;
-				remaining -= take;
-				if (remaining <= 0) break;
+		// stack into existing
+		for (let i = 0; i < a.length && n > 0; i++) {
+			const it = a[i];
+			if (it && it.id === id && it.n < def.maxStack) {
+				const add = Math.min(n, def.maxStack - it.n);
+				it.n += add;
+				n -= add;
 			}
 		}
 
-		const moved = src.count - remaining;
-		src.count = remaining;
-		if (src.count <= 0) {
-			src.id = "";
-			src.count = 0;
+		// place into empty
+		for (let i = 0; i < a.length && n > 0; i++) {
+			if (!a[i]) {
+				const add = Math.min(n, def.maxStack);
+				a[i] = { id, n: add };
+				n -= add;
+			}
 		}
-		return { moved };
+
+		if (n !== 0) this.e.emit('inv:full', { id, n });
+		this.e.emit('inv:changed');
+		return n;
+	}
+
+	moveOne(srcKind, srcI, dstKind) {
+		const src = this.getSlot(srcKind, srcI);
+		if (!src) return false;
+
+		const def = this.def(src.id);
+		if (!def) return false;
+
+		const dstArr = dstKind === 'hot' ? this.s.inv.hot : this.s.inv.bag;
+
+		// try stack into same id
+		for (let i = 0; i < dstArr.length; i++) {
+			const d = dstArr[i];
+			if (d && d.id === src.id && d.n < def.maxStack) {
+				const add = Math.min(src.n, def.maxStack - d.n);
+				d.n += add;
+				src.n -= add;
+				if (src.n <= 0) this.setSlot(srcKind, srcI, null);
+				this.e.emit('inv:changed');
+				return true;
+			}
+		}
+
+		// try empty
+		const empty = this.firstEmpty(dstKind);
+		if (empty >= 0) {
+			dstArr[empty] = src;
+			this.setSlot(srcKind, srcI, null);
+			this.e.emit('inv:changed');
+			return true;
+		}
+
+		// swap with first slot (simple, predictable)
+		const swapI = 0;
+		const tmp = dstArr[swapI];
+		dstArr[swapI] = src;
+		this.setSlot(srcKind, srcI, tmp);
+		this.e.emit('inv:changed');
+		return true;
 	}
 }

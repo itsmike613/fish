@@ -1,112 +1,119 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { THREE } from './Renderer.js';
 
 export class World {
-	/**
-	 * @param {object} deps
-	 * @param {import("./Events.js").Events} deps.events
-	 * @param {any} deps.state
-	 * @param {import("./Renderer.js").Renderer} deps.renderer
-	 */
-	constructor({ events, state, renderer }) {
-		this.events = events;
-		this.state = state;
-		this.renderer = renderer;
-		this.scene = renderer.scene;
+	constructor(state, events, renderer) {
+		this.s = state;
+		this.e = events;
+		this.ren = renderer;
 
-		this.center = new THREE.Vector3(0, 0, 0);
+		this.grp = new THREE.Group();
+		this.ren.scene.add(this.grp);
 
-		this._loader = new THREE.TextureLoader();
+		this.tex = new THREE.TextureLoader();
 
-		this._sandTex = this._loader.load("./Source/Assets/Terrain/sand.png");
-		this._sandTex.colorSpace = THREE.SRGBColorSpace;
-		this._sandTex.wrapS = this._sandTex.wrapT = THREE.RepeatWrapping;
-		this._sandTex.repeat.set(6, 6);
+		this.island = null;
+		this.water = null;
 
-		this._waterTex = this._loader.load("./Source/Assets/Terrain/water.png");
-		this._waterTex.colorSpace = THREE.SRGBColorSpace;
-		this._waterTex.wrapS = this._waterTex.wrapT = THREE.RepeatWrapping;
-		this._waterTex.repeat.set(64, 64);
-
-		this._buildIsland();
-		this._buildWater();
-
-		// Shared raycast target for Fishing (water mesh only)
-		this.events.emit("world:ready", {
-			waterMesh: this.waterMesh,
-			islandRadius: this.state.world.islandRadius,
-			shorelineRadius: this.state.world.shorelineRadius,
-			waterY: this.state.world.waterY,
-		});
+		this._mkIsland();
+		this._mkWater();
 	}
 
-	_buildIsland() {
-		const r = this.state.world.islandRadius;
-		const y = this.state.world.sandY;
+	_mkIsland() {
+		const sand = this.tex.load('./Source/Assets/Terrain/sand.png');
+		sand.colorSpace = THREE.SRGBColorSpace;
+		sand.wrapS = sand.wrapT = THREE.RepeatWrapping;
+		sand.repeat.set(12, 12); // 12 tiles across diameter
 
-		const geo = new THREE.CircleGeometry(r, 64);
+		const geo = new THREE.CircleGeometry(this.s.world.islandR, 64);
 		geo.rotateX(-Math.PI / 2);
 
 		const mat = new THREE.MeshStandardMaterial({
-			map: this._sandTex,
+			map: sand,
 			roughness: 1.0,
-			metalness: 0.0,
+			metalness: 0.0
 		});
 
-		this.islandMesh = new THREE.Mesh(geo, mat);
-		this.islandMesh.position.y = y;
-		this.islandMesh.receiveShadow = false;
-		this.scene.add(this.islandMesh);
+		const m = new THREE.Mesh(geo, mat);
+		m.position.y = 0.02; // sits just above water
+		m.receiveShadow = false;
+
+		this.island = m;
+		this.grp.add(m);
 	}
 
-	_buildWater() {
-		const y = this.state.world.waterY;
+	_mkWater() {
+		const water = this.tex.load('./Source/Assets/Terrain/water.png');
+		water.colorSpace = THREE.SRGBColorSpace;
+		water.wrapS = water.wrapT = THREE.RepeatWrapping;
+		water.repeat.set(220, 220);
 
 		const geo = new THREE.PlaneGeometry(2000, 2000, 1, 1);
 		geo.rotateX(-Math.PI / 2);
 
-		// Transparent, vibrant reflective-ish water (cheap)
-		const mat = new THREE.MeshStandardMaterial({
-			map: this._waterTex,
-			color: new THREE.Color(0x35c8ff),
+		const mat = new THREE.MeshPhongMaterial({
+			map: water,
 			transparent: true,
-			opacity: 0.72,
-			roughness: 0.18,
-			metalness: 0.10,
-			depthWrite: false, // keep "endless surface" feel
+			opacity: 0.78,
+			shininess: 110,
+			specular: new THREE.Color(0xffffff),
+			depthWrite: false
 		});
 
-		this.waterMesh = new THREE.Mesh(geo, mat);
-		this.waterMesh.position.y = y;
-		this.scene.add(this.waterMesh);
+		const m = new THREE.Mesh(geo, mat);
+		m.position.y = this.s.world.waterY;
+		this.water = m;
+		this.grp.add(m);
+
+		this.waterTex = water;
+		this.waterMat = mat;
 	}
 
-	/**
-	 * Shoreline boundary helper.
-	 * Keep player inside shoreline radius (no entering water).
-	 */
-	clampToShoreline(pos) {
-		const maxR = this.state.world.shorelineRadius;
-		const dx = pos.x - this.center.x;
-		const dz = pos.z - this.center.z;
-		const d2 = dx * dx + dz * dz;
-		if (d2 <= maxR * maxR) return pos;
+	// shoreline block: keep player inside island radius
+	clampToIsland(pos) {
+		const r = this.s.world.islandR - this.s.world.shorePad;
+		const x = pos.x, z = pos.z;
+		const d = Math.hypot(x, z);
+		if (d > r) {
+			const k = r / d;
+			pos.x = x * k;
+			pos.z = z * k;
+			return true;
+		}
+		return false;
+	}
 
-		const d = Math.sqrt(d2) || 1;
-		const nx = dx / d;
-		const nz = dz / d;
-		pos.x = this.center.x + nx * maxR;
-		pos.z = this.center.z + nz * maxR;
-		return pos;
+	isWaterPoint(p) {
+		// water is anywhere outside the sand disc
+		const d = Math.hypot(p.x, p.z);
+		return d > this.s.world.islandR + 0.01;
+	}
+
+	// ray from camera, intersect y=waterY plane
+	rayToWater(ray) {
+		const y = this.s.world.waterY;
+		const o = ray.origin;
+		const d = ray.direction;
+		if (Math.abs(d.y) < 1e-5) return null;
+		const t = (y - o.y) / d.y;
+		if (t <= 0) return null;
+
+		const hit = new THREE.Vector3(
+			o.x + d.x * t,
+			y,
+			o.z + d.z * t
+		);
+
+		if (!this.isWaterPoint(hit)) return null;
+		return hit;
 	}
 
 	update(dt) {
-		// Animate water texture offset for motion
-		const t = this.state.time.now;
-		this._waterTex.offset.x = (t * 0.008) % 1;
-		this._waterTex.offset.y = (t * 0.006) % 1;
+		// animate water texture for "moving reflective water"
+		const t = this.waterTex;
+		t.offset.x = (t.offset.x + dt * 0.018) % 1;
+		t.offset.y = (t.offset.y + dt * 0.011) % 1;
 
-		// Subtle shimmer with small color pulse (warm beach vibe)
-		const pulse = 0.04 * Math.sin(t * 0.7);
-		this.waterMesh.material.opacity = 0.70 + pulse;
+		// slight shimmer by modulating opacity
+		this.waterMat.opacity = 0.76 + Math.sin(performance.now() * 0.0012) * 0.03;
 	}
 }

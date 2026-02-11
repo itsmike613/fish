@@ -1,84 +1,76 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { THREE } from './Renderer.js';
 
 export class Birds {
-	/**
-	 * @param {object} deps
-	 * @param {any} deps.state
-	 * @param {import("./Renderer.js").Renderer} deps.renderer
-	 */
-	constructor({ state, renderer }) {
-		this.state = state;
-		this.renderer = renderer;
-		this.scene = renderer.scene;
+	constructor(state, events, renderer) {
+		this.s = state;
+		this.e = events;
+		this.ren = renderer;
 
-		// Extremely lightweight: 1-2 simple "V" shapes using line segments
-		const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 });
+		this.grp = new THREE.Group();
+		this.ren.scene.add(this.grp);
 
-		const makeGull = () => {
-			const pts = [
-				new THREE.Vector3(-0.18, 0, 0),
-				new THREE.Vector3(0, 0.07, 0),
-				new THREE.Vector3(0.18, 0, 0),
-			];
-			const geo = new THREE.BufferGeometry().setFromPoints(pts);
-			const line = new THREE.Line(geo, mat);
-			line.visible = false;
-			return line;
-		};
+		this.b = [];
+		this.t = 0;
 
-		this.gulls = [makeGull(), makeGull()];
-		this.gulls.forEach(g => this.scene.add(g));
+		// extremely lightweight: 2 simple "V" birds as lines
+		for (let i = 0; i < 2; i++) {
+			const geo = new THREE.BufferGeometry();
+			geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+				-0.12, 0, 0,
+				0.00, 0.05, 0,
+				0.12, 0, 0
+			]), 3));
+			const mat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
+			const m = new THREE.Line(geo, mat);
+			m.visible = false;
+			this.grp.add(m);
 
-		this._active = false;
-		this._nextSpawn = 3 + Math.random() * 6;
-		this._t = 0;
-
-		this._phase = 0;
+			this.b.push({
+				m,
+				a: 0,
+				r: 22 + Math.random() * 20,
+				y: 10 + Math.random() * 6,
+				sp: 0.25 + Math.random() * 0.25,
+				on: 0
+			});
+		}
 	}
 
 	update(dt) {
-		this._t += dt;
+		this.t += dt;
 
-		if (!this._active) {
-			this._nextSpawn -= dt;
-			if (this._nextSpawn <= 0) {
-				this._active = true;
-				this._phase = 0;
-				this._nextSpawn = 6 + Math.random() * 10;
+		// occasionally toggle on
+		for (const x of this.b) {
+			x.on -= dt;
+			if (x.on <= 0 && Math.random() < dt * 0.05) {
+				x.on = 6 + Math.random() * 10;
+				x.m.visible = true;
+				x.a = Math.random() * Math.PI * 2;
+				x.r = 28 + Math.random() * 30;
+				x.y = 10 + Math.random() * 8;
+			}
 
-				const count = 1 + (Math.random() < 0.35 ? 1 : 0);
-				for (let i = 0; i < this.gulls.length; i++) {
-					this.gulls[i].visible = i < count;
+			if (x.m.visible) {
+				x.a += dt * x.sp;
+				const cx = this.ren.cam.position.x;
+				const cz = this.ren.cam.position.z;
+
+				x.m.position.set(
+					cx + Math.cos(x.a) * x.r,
+					x.y,
+					cz + Math.sin(x.a) * x.r
+				);
+
+				x.m.lookAt(cx, x.y, cz);
+
+				// flap via tiny scale pulse
+				const f = 1 + Math.sin(performance.now() * 0.02) * 0.18;
+				x.m.scale.set(f, f, f);
+
+				if (x.on <= 0) {
+					x.m.visible = false;
 				}
 			}
-			return;
-		}
-
-		// Fly a lazy circle around the island
-		this._phase += dt * 0.35;
-		const baseR = 7.0;
-		const y = 5.2 + 0.4 * Math.sin(this._t * 1.3);
-
-		for (let i = 0; i < this.gulls.length; i++) {
-			const g = this.gulls[i];
-			if (!g.visible) continue;
-
-			const a = this._phase + i * 0.7;
-			const r = baseR + i * 0.9;
-			g.position.set(Math.cos(a) * r, y + i * 0.2, Math.sin(a) * r);
-
-			// face tangent
-			g.rotation.y = -a + Math.PI / 2;
-
-			// tiny flap
-			const flap = 0.06 * Math.sin(this._t * 9 + i);
-			g.scale.set(1 + flap, 1, 1);
-		}
-
-		// auto-hide after a while
-		if (this._phase > Math.PI * 2.2) {
-			this._active = false;
-			for (const g of this.gulls) g.visible = false;
 		}
 	}
 }

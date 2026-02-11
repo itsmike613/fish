@@ -1,173 +1,133 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { THREE } from './Renderer.js';
 
 export class Player {
-	/**
-	 * @param {object} deps
-	 * @param {import("./Events.js").Events} deps.events
-	 * @param {any} deps.state
-	 * @param {import("./Renderer.js").Renderer} deps.renderer
-	 * @param {import("./World.js").World} deps.world
-	 */
-	constructor({ events, state, renderer, world }) {
-		this.events = events;
-		this.state = state;
-		this.renderer = renderer;
+	constructor(state, events, renderer, world) {
+		this.s = state;
+		this.e = events;
+		this.ren = renderer;
 		this.world = world;
 
 		this.yaw = 0;
 		this.pitch = 0;
 
-		this._keys = new Set();
-		this._wantJump = false;
+		this.keys = new Set();
+		this.locked = false;
+		this.enabled = true;
 
-		this._tmpForward = new THREE.Vector3();
-		this._tmpRight = new THREE.Vector3();
+		this.speed = 4.2;
+		this.sprint = 6.4;
+		this.jumpV = 6.0;
+		this.g = 18.5;
 
 		this._bind();
 	}
 
 	_bind() {
-		const canvas = document.getElementById("game");
+		const canvas = this.ren.r.domElement;
 
-		document.addEventListener("contextmenu", (e) => e.preventDefault());
-
-		canvas.addEventListener("click", () => {
-			if (this.state.ui.inventoryOpen) return;
-			canvas.requestPointerLock();
+		canvas.addEventListener('click', () => {
+			if (!this.s.ui.invOpen) canvas.requestPointerLock();
 		});
 
-		document.addEventListener("pointerlockchange", () => {
-			this.state.ui.pointerLocked = (document.pointerLockElement === canvas);
-			this.events.emit("ui:pointerLock", { locked: this.state.ui.pointerLocked });
+		document.addEventListener('pointerlockchange', () => {
+			this.locked = (document.pointerLockElement === canvas);
 		});
 
-		document.addEventListener("mousemove", (e) => {
-			if (!this.state.ui.pointerLocked) return;
-			if (this.state.ui.inventoryOpen) return;
+		document.addEventListener('mousemove', (ev) => {
+			if (!this.locked || this.s.ui.invOpen) return;
+			const sx = ev.movementX || 0;
+			const sy = ev.movementY || 0;
 
-			const mx = e.movementX || 0;
-			const my = e.movementY || 0;
+			this.yaw -= sx * 0.0022;
+			this.pitch -= sy * 0.0022;
+			const lim = Math.PI / 2 - 0.02;
+			this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
 
-			const sens = 0.0022;
-			this.yaw -= mx * sens;
-			this.pitch -= my * sens;
-
-			const lim = Math.PI / 2 - 0.01;
-			if (this.pitch > lim) this.pitch = lim;
-			if (this.pitch < -lim) this.pitch = -lim;
+			this._applyCamRot();
 		});
 
-		window.addEventListener("keydown", (e) => {
-			// inventory toggling is handled in UI (which emits events)
-			this._keys.add(e.code);
-			if (e.code === "Space") this._wantJump = true;
+		window.addEventListener('keydown', (ev) => {
+			this.keys.add(ev.code);
+			if (ev.code === 'Space') ev.preventDefault();
 		});
 
-		window.addEventListener("keyup", (e) => {
-			this._keys.delete(e.code);
+		window.addEventListener('keyup', (ev) => {
+			this.keys.delete(ev.code);
 		});
 
-		// Inventory toggle event (pause movement + release lock)
-		this.events.on("ui:inventory", ({ open }) => {
-			if (open) {
-				if (document.pointerLockElement) document.exitPointerLock();
-			}
+		this.e.on('ui:cursor', (on) => {
+			// when inventory open -> show cursor, stop mouse look + movement
+			this.enabled = !on;
+			if (on && this.locked) document.exitPointerLock();
 		});
 	}
 
-	getCameraRay() {
-		// For Fishing: origin at camera position
-		return {
-			origin: this.renderer.camera.position.clone(),
-			direction: new THREE.Vector3(0, 0, -1).applyQuaternion(this.renderer.camera.quaternion).normalize(),
-		};
+	_applyCamRot() {
+		this.ren.cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
 	}
 
 	update(dt) {
-		// Pause movement when inventory open
-		if (this.state.ui.inventoryOpen) {
-			// still update camera pose (to keep stable)
-			this.renderer.setCameraPose(this.state.player.position, this.yaw, this.pitch);
+		// keep camera synced to state
+		const p = this.s.player.pos;
+		const v = this.s.player.vel;
+
+		if (!this.enabled) {
+			// still clamp to island if somehow needed
+			this.world.clampToIsland(p);
+			this.ren.cam.position.set(p.x, p.y, p.z);
 			return;
 		}
 
-		const p = this.state.player.position;
-		const v = this.state.player.velocity;
+		const forward = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0);
+		const strafe = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0);
 
-		const onGroundY = this.state.world.sandY + 1.7; // eye height above sand
-		const groundEps = 0.02;
+		const sprinting = this.keys.has('ControlLeft') || this.keys.has('ControlRight');
+		const sp = sprinting ? this.sprint : this.speed;
 
-		// Movement speeds
-		const walk = 4.4;
-		const sprint = 6.6;
-		const speed = this._keys.has("ControlLeft") || this._keys.has("ControlRight") ? sprint : walk;
-
-		// Direction vectors from yaw
-		const cy = Math.cos(this.yaw);
-		const sy = Math.sin(this.yaw);
-
-		// forward in XZ
-		this._tmpForward.set(-sy, 0, -cy);
-		this._tmpRight.set(cy, 0, -sy);
-
-		let ax = 0, az = 0;
-		if (this._keys.has("KeyW")) { ax += this._tmpForward.x; az += this._tmpForward.z; }
-		if (this._keys.has("KeyS")) { ax -= this._tmpForward.x; az -= this._tmpForward.z; }
-		if (this._keys.has("KeyA")) { ax -= this._tmpRight.x; az -= this._tmpRight.z; }
-		if (this._keys.has("KeyD")) { ax += this._tmpRight.x; az += this._tmpRight.z; }
-
-		// Normalize input
-		const mag = Math.hypot(ax, az);
-		if (mag > 0) { ax /= mag; az /= mag; }
-
-		// Horizontal velocity (very simple FPS)
-		const accel = 40;
-		v.x += ax * accel * dt;
-		v.z += az * accel * dt;
-
-		// Friction
-		const friction = 14;
-		v.x -= v.x * friction * dt;
-		v.z -= v.z * friction * dt;
-
-		// Clamp horizontal speed
-		const hv = Math.hypot(v.x, v.z);
-		const maxHV = speed;
-		if (hv > maxHV) {
-			const s = maxHV / (hv || 1);
-			v.x *= s; v.z *= s;
+		// planar movement in camera yaw space
+		const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+		let mx = 0, mz = 0;
+		if (forward || strafe) {
+			mx = (strafe * cos + forward * sin);
+			mz = (forward * cos - strafe * sin);
+			const len = Math.hypot(mx, mz) || 1;
+			mx /= len; mz /= len;
 		}
 
-		// Gravity
-		v.y -= 20.0 * dt;
+		v.x = mx * sp;
+		v.z = mz * sp;
 
-		// Jump
-		const onGround = Math.abs(p.y - onGroundY) < groundEps;
-		this.state.player.onGround = onGround;
-		if (this._wantJump && onGround) {
-			v.y = 7.2;
+		// jump
+		if (this.s.player.grounded && this.keys.has('Space')) {
+			v.y = this.jumpV;
+			this.s.player.grounded = false;
 		}
-		this._wantJump = false;
 
-		// Integrate
-		let nx = p.x + v.x * dt;
-		let ny = p.y + v.y * dt;
-		let nz = p.z + v.z * dt;
+		// gravity
+		v.y -= this.g * dt;
 
-		// Ground collision
-		if (ny < onGroundY) {
-			ny = onGroundY;
+		// integrate
+		p.x += v.x * dt;
+		p.y += v.y * dt;
+		p.z += v.z * dt;
+
+		// ground plane
+		const eye = 1.7;
+		if (p.y < eye) {
+			p.y = eye;
 			v.y = 0;
+			this.s.player.grounded = true;
 		}
 
-		// Shoreline boundary clamp (no water entry)
-		const tmp = { x: nx, y: ny, z: nz };
-		this.world.clampToShoreline(tmp);
-		nx = tmp.x; nz = tmp.z;
+		// shoreline boundary
+		this.world.clampToIsland(p);
 
-		p.x = nx; p.y = ny; p.z = nz;
+		this.ren.cam.position.set(p.x, p.y, p.z);
+	}
 
-		// Apply camera
-		this.renderer.setCameraPose(p, this.yaw, this.pitch);
+	getRay() {
+		const ray = new THREE.Raycaster();
+		ray.setFromCamera(new THREE.Vector2(0, 0), this.ren.cam);
+		return ray.ray;
 	}
 }

@@ -1,69 +1,62 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js";
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { EffectComposer } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 export class Renderer {
-	constructor({ state }) {
-		this.state = state;
-		this.canvas = document.getElementById("game");
+	constructor(state, events) {
+		this.s = state;
+		this.e = events;
+
+		const canvas = document.querySelector('#c');
+		this.r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+		this.r.setPixelRatio(Math.min(devicePixelRatio, 2));
+		this.r.setSize(innerWidth, innerHeight, false);
+		this.r.outputColorSpace = THREE.SRGBColorSpace;
+		this.r.toneMapping = THREE.ACESFilmicToneMapping;
+		this.r.toneMappingExposure = 1.05;
+
 		this.scene = new THREE.Scene();
-		this.scene.fog = new THREE.FogExp2(0x87c7ff, 0.0006);
-		this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 2200);
-		this.camera.position.set(0, 1.7, 0);
-		this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false });
-		this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-		this.renderer.setSize(window.innerWidth, window.innerHeight);
-		this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-		this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-		this.renderer.toneMappingExposure = 1.05;
-		this.sun = new THREE.DirectionalLight(0xfff1d0, 1.35);
-		this.sun.position.set(6, 10, 4);
-		this.scene.add(this.sun);
-		this.ambient = new THREE.HemisphereLight(0xbfe8ff, 0xffcfa6, 0.75);
-		this.scene.add(this.ambient);
-		this.composer = new EffectComposer(this.renderer);
-		this.composer.addPass(new RenderPass(this.scene, this.camera));
-		this.bloom = new UnrealBloomPass(
-			new THREE.Vector2(window.innerWidth, window.innerHeight),
-			0.25,
-			0.55,
-			0.12
+		this.scene.background = new THREE.Color(0x7fd0ff);
+
+		this.cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 2000);
+		this.cam.position.set(0, 1.7, 0);
+
+		// warm beach lighting
+		this.scene.add(new THREE.HemisphereLight(0xfff2cc, 0x2a3b55, 0.95));
+		const sun = new THREE.DirectionalLight(0xfff1d6, 1.05);
+		sun.position.set(40, 60, 20);
+		sun.castShadow = false;
+		this.scene.add(sun);
+
+		// subtle bloom (lightweight)
+		this.composer = new EffectComposer(this.r);
+		this.composer.addPass(new RenderPass(this.scene, this.cam));
+		const bloom = new UnrealBloomPass(
+			new THREE.Vector2(innerWidth, innerHeight),
+			0.28,   // strength
+			0.8,    // radius
+			0.92    // threshold
 		);
-		this.composer.addPass(this.bloom);
+		this.composer.addPass(bloom);
 
-		this._defaultFogColor = new THREE.Color(0x87c7ff);
-		this._underFogColor = new THREE.Color(0x2aa7c9);
-
-		window.addEventListener("resize", () => this._onResize());
+		window.addEventListener('resize', () => this._resize());
 	}
 
-	_onResize() {
-		const w = window.innerWidth;
-		const h = window.innerHeight;
-		this.camera.aspect = w / h;
-		this.camera.updateProjectionMatrix();
-		this.renderer.setSize(w, h);
-		this.composer.setSize(w, h);
+	_resize() {
+		this.cam.aspect = innerWidth / innerHeight;
+		this.cam.updateProjectionMatrix();
+		this.r.setSize(innerWidth, innerHeight, false);
+		this.composer.setSize(innerWidth, innerHeight);
 	}
 
-	setCameraPose(pos, yaw, pitch) {
-		this.camera.position.set(pos.x, pos.y, pos.z);
-		this.camera.rotation.set(pitch, yaw, 0, "YXZ");
-	}
-
-	update() {
-		const waterY = this.state.world.waterY;
-		const underwater = this.camera.position.y < (waterY - 0.05);
-
-		if (underwater) {
-			this.scene.fog.color.copy(this._underFogColor);
-			this.scene.fog.density = 0.0085;
-			this.renderer.toneMappingExposure = 0.95;
+	setFog(isUnder) {
+		if (isUnder) {
+			this.scene.fog = new THREE.FogExp2(0x2cc9ff, 0.06);
+			this.scene.background = new THREE.Color(0x2cc9ff);
 		} else {
-			this.scene.fog.color.copy(this._defaultFogColor);
-			this.scene.fog.density = 0.0006;
-			this.renderer.toneMappingExposure = 1.05;
+			this.scene.fog = new THREE.FogExp2(0x7fd0ff, 0.012);
+			this.scene.background = new THREE.Color(0x7fd0ff);
 		}
 	}
 
@@ -71,3 +64,5 @@ export class Renderer {
 		this.composer.render();
 	}
 }
+
+export { THREE };

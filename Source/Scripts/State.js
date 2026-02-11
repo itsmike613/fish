@@ -1,41 +1,32 @@
-// Shared runtime state slices. Keep them small + stable.
-// Future systems (Save/Shop/Audio) can subscribe to Events and read/write specific slices here.
-export function createState() {
+export function makeState() {
 	return {
-		time: {
-			now: 0,
-			dt: 0,
-		},
-
 		ui: {
-			inventoryOpen: false,
-			hotbarIndex: 0, // 0..8
-			pointerLocked: false,
+			invOpen: false,
+			hotSel: 0,
+			cursor: true
 		},
-
 		world: {
-			islandRadius: 6.0,     // diameter 12 tiles => radius 6
-			shorelineRadius: 5.75, // movement boundary (slightly inside)
-			waterY: 0.0,
-			sandY: 0.06,
+			tile: 1,
+			islandR: 6,
+			shorePad: 0.15,
+			waterY: 0
 		},
-
 		player: {
-			position: { x: 0, y: 1.7, z: 0 },
-			velocity: { x: 0, y: 0, z: 0 },
-			onGround: false,
+			pos: { x: 0, y: 1.7, z: 0 },
+			vel: { x: 0, y: 0, z: 0 },
+			grounded: true,
+			sprint: false
 		},
-
+		inv: {
+			hot: Array.from({ length: 9 }, () => null),
+			bag: Array.from({ length: 36 }, () => null),
+		},
 		fishing: {
-			isCast: false,
-			biteActive: false,
-			bobber: {
-				x: 0, y: 0, z: 0,
-			},
-			// seconds remaining until bite
-			timer: 0,
-			// fish trail visibility window
-			trailActive: false,
-		},
+			cast: false,
+			bite: false,
+			t: 0,
+			showCd: false,
+			cd: 0
+		}
 	};
 }
