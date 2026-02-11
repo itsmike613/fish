@@ -1,154 +1,166 @@
 // fish/Source/Scripts/Inventory.js
-import { loot } from './Loot.js';
+import { loot } from "./Loot.js";
 
-function byId(){
-  const m = new Map();
-  for(const it of loot) m.set(it.id, it);
-  return m;
+const lootById = new Map();
+for (const item of loot) lootById.set(item.id, item);
+
+export function getItem(id) {
+	return lootById.get(id) || null;
 }
 
-const lootById = byId();
-
-function maxStack(id){
-  const it = lootById.get(id);
-  return it ? (it.stackable|0) : 1;
+export function maxStack(id) {
+	const item = lootById.get(id);
+	return item ? Math.max(1, item.stackable | 0) : 1;
 }
 
-function normSlot(s){
-  if(!s) return null;
-  if(typeof s !== 'object') return null;
-  if(typeof s.id !== 'string') return null;
-  const c = s.count|0;
-  if(c <= 0) return null;
-  return { id: s.id, count: c };
+export function normalizeSlot(slot) {
+	if (!slot || typeof slot !== "object") return null;
+	if (typeof slot.id !== "string") return null;
+	const item = getItem(slot.id);
+	if (!item) return null;
+	const qty = Math.floor(Number(slot.qty));
+	if (!Number.isFinite(qty) || qty <= 0) return null;
+	return { id: slot.id, qty: Math.min(qty, maxStack(slot.id)) };
 }
 
-function canStack(id){
-  return maxStack(id) > 1;
+export function normalizeSlots(slots, expectedLen) {
+	const out = Array.from({ length: expectedLen }, () => null);
+	for (let i = 0; i < expectedLen; i++) out[i] = normalizeSlot(slots[i]);
+	return out;
 }
 
-export class Inventory {
-  constructor(state){
-    this.state = state;
-    this.cursor = null;
-  }
+function mergeInto(slot, id, qty) {
+	const m = maxStack(id);
+	if (!slot) return { slot: { id, qty: Math.min(qty, m) }, left: Math.max(0, qty - m) };
+	if (slot.id !== id) return { slot, left: qty };
 
-  get hotbar(){ return this.state.data.hotbar; }
-  get inv(){ return this.state.data.inventory; }
+	const space = m - slot.qty;
+	if (space <= 0) return { slot, left: qty };
 
-  _emitChanged(){
-    this.state.emit('inv', null);
-  }
+	const moved = Math.min(space, qty);
+	return { slot: { id, qty: slot.qty + moved }, left: qty - moved };
+}
 
-  _save(){
-    this.state.save();
-  }
+export function addToSlots(slots, id, qty) {
+	let left = qty;
 
-  slot(section, i){
-    const a = (section === 'hotbar') ? this.hotbar : this.inv;
-    return a[i] ?? null;
-  }
+	const m = maxStack(id);
 
-  setSlot(section, i, v){
-    const a = (section === 'hotbar') ? this.hotbar : this.inv;
-    a[i] = normSlot(v);
-  }
+	// merge
+	for (let i = 0; i < slots.length; i++) {
+		if (!slots[i] || slots[i].id !== id) continue;
+		if (slots[i].qty >= m) continue;
 
-  click(section, i){
-    const s = normSlot(this.slot(section, i));
-    const c = normSlot(this.cursor);
+		const res = mergeInto(slots[i], id, left);
+		slots[i] = res.slot;
+		left = res.left;
+		if (left <= 0) return 0;
+	}
 
-    if(!c && s){
-      this.cursor = s;
-      this.setSlot(section, i, null);
-      this._emitChanged();
-      this.state.emit('cursor', this.cursor);
-      this._save();
-      return;
-    }
+	// empty fill
+	for (let i = 0; i < slots.length; i++) {
+		if (slots[i]) continue;
+		const take = Math.min(m, left);
+		slots[i] = { id, qty: take };
+		left -= take;
+		if (left <= 0) return 0;
+	}
 
-    if(c && !s){
-      this.setSlot(section, i, c);
-      this.cursor = null;
-      this._emitChanged();
-      this.state.emit('cursor', this.cursor);
-      this._save();
-      return;
-    }
+	return left;
+}
 
-    if(c && s){
-      if(c.id === s.id && canStack(c.id)){
-        const m = maxStack(c.id);
-        const space = m - s.count;
-        if(space > 0){
-          const add = Math.min(space, c.count);
-          s.count += add;
-          c.count -= add;
-          this.setSlot(section, i, s);
-          this.cursor = c.count > 0 ? c : null;
-          this._emitChanged();
-          this.state.emit('cursor', this.cursor);
-          this._save();
-          return;
-        }
-      }
+export function addToPlayer(state, id, qty) {
+	let left = qty;
+	left = addToSlots(state.hotbar, id, left);
+	left = addToSlots(state.inventory, id, left);
+	return left;
+}
 
-      this.setSlot(section, i, c);
-      this.cursor = s;
-      this._emitChanged();
-      this.state.emit('cursor', this.cursor);
-      this._save();
-    }
-  }
+export function clickSlot(state, section, index) {
+	const slots = section === "hotbar" ? state.hotbar : state.inventory;
+	const cur = state.cursor ? { ...state.cursor } : null;
+	const slot = slots[index] ? { ...slots[index] } : null;
 
-  add(id, count){
-    count = count|0;
-    if(count <= 0) return 0;
-    const m = maxStack(id);
+	if (!cur) {
+		if (!slot) return false;
+		state.cursor = slot;
+		slots[index] = null;
+		return true;
+	}
 
-    const fill = (arr) => {
-      if(m <= 1) return;
-      for(let i=0;i<arr.length;i++){
-        const s = normSlot(arr[i]);
-        if(!s) continue;
-        if(s.id !== id) continue;
-        if(s.count >= m) continue;
-        const space = m - s.count;
-        const add = Math.min(space, count);
-        s.count += add;
-        count -= add;
-        arr[i] = s;
-        if(count <= 0) return;
-      }
-    };
+	if (!slot) {
+		slots[index] = cur;
+		state.cursor = null;
+		return true;
+	}
 
-    const place = (arr) => {
-      for(let i=0;i<arr.length;i++){
-        const s = normSlot(arr[i]);
-        if(s) continue;
-        const add = Math.min(m, count);
-        arr[i] = { id, count: add };
-        count -= add;
-        if(count <= 0) return;
-      }
-    };
+	if (slot.id === cur.id) {
+		const m = maxStack(slot.id);
+		const space = m - slot.qty;
 
-    fill(this.hotbar);
-    fill(this.inv);
-    place(this.hotbar);
-    place(this.inv);
+		if (space <= 0) {
+			slots[index] = cur;
+			state.cursor = slot;
+			return true;
+		}
 
-    this._emitChanged();
-    this._save();
-    return count; // leftover
-  }
+		const moved = Math.min(space, cur.qty);
+		slot.qty += moved;
+		cur.qty -= moved;
 
-  stashCursor(){
-    const c = normSlot(this.cursor);
-    if(!c) return;
-    const left = this.add(c.id, c.count);
-    this.cursor = left > 0 ? { id: c.id, count: left } : null;
-    this.state.emit('cursor', this.cursor);
-    this._save();
-  }
+		slots[index] = slot;
+		state.cursor = cur.qty > 0 ? cur : null;
+		return true;
+	}
+
+	slots[index] = cur;
+	state.cursor = slot;
+	return true;
+}
+
+function moveStackInto(sourceSlot, destSlots) {
+	if (!sourceSlot) return { moved: 0, leftSlot: null };
+
+	const id = sourceSlot.id;
+	let left = sourceSlot.qty;
+
+	// merge
+	const m = maxStack(id);
+	for (let i = 0; i < destSlots.length; i++) {
+		const d = destSlots[i];
+		if (!d || d.id !== id) continue;
+		if (d.qty >= m) continue;
+
+		const space = m - d.qty;
+		const moved = Math.min(space, left);
+		destSlots[i] = { id, qty: d.qty + moved };
+		left -= moved;
+		if (left <= 0) return { moved: sourceSlot.qty, leftSlot: null };
+	}
+
+	// empties
+	for (let i = 0; i < destSlots.length; i++) {
+		if (destSlots[i]) continue;
+		const take = Math.min(m, left);
+		destSlots[i] = { id, qty: take };
+		left -= take;
+		if (left <= 0) return { moved: sourceSlot.qty, leftSlot: null };
+	}
+
+	const movedTotal = sourceSlot.qty - left;
+	return { moved: movedTotal, leftSlot: left > 0 ? { id, qty: left } : null };
+}
+
+export function shiftClick(state, section, index) {
+	const sourceSlots = section === "hotbar" ? state.hotbar : state.inventory;
+	const destSlots = section === "hotbar" ? state.inventory : state.hotbar;
+
+	const src = sourceSlots[index];
+	if (!src) return false;
+
+	const res = moveStackInto(src, destSlots);
+	if (res.moved <= 0) return false;
+
+	sourceSlots[index] = res.leftSlot;
+	return true;
 }

@@ -1,9 +1,9 @@
 // fish/Source/Scripts/Loot.js
-// fish/Source/Scripts/Loot.js
 export const loot = [
   {
     name: "Salmon",
-    description: "Tastes like $15 and the crushing realization that 'fresh caught' is just a marketing term for 'sat in a bucket of lukewarm seawater for six hours.'",
+    description:
+      "Tastes like $15 and the crushing realization that 'fresh caught' is just a marketing term for 'sat in a bucket of lukewarm seawater for six hours.'",
     id: "salmon",
     sprite: "./Source/Assets/Catches/salmon.png",
     category: "fish",
@@ -12,22 +12,104 @@ export const loot = [
     sellable: true,
     stackable: 256,
     weight: 10,
-    price: 15
+    price: 15,
   },
   {
     name: "Research Log #1",
-    description: "Entry 1: 'The island is 30% smaller than yesterday. I've stopped leaving my shoes near the shoreline.'",
+    description:
+      "Entry 1: 'The island is 30% smaller than yesterday. I've stopped leaving my shoes near the shoreline.'",
     id: "researchlog1",
-    sprite: "./Source/Assets/Catches/salmon.png",
+    sprite: "./Source/Assets/Catches/researchlog1.png",
     category: "lore",
     rarity: "uncommon",
     sellable: false,
     catchable: 1,
     stackable: 1,
     weight: 0.01,
-    price: 0
-  }
+    price: 0,
+  },
+
+  {
+    name: "Old Boot",
+    description: "A boot with more stories than support.",
+    id: "oldboot",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "junk",
+    rarity: "common",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 64,
+    weight: 1.5,
+    price: 2,
+  },
+  {
+    name: "Glass Bottle",
+    description: "Empty, unless you count the smell.",
+    id: "bottle",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "junk",
+    rarity: "common",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 64,
+    weight: 0.4,
+    price: 1,
+  },
+  {
+    name: "Silver Ring",
+    description: "Cold, clean, and suspiciously perfect.",
+    id: "silverring",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "treasure",
+    rarity: "rare",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 16,
+    weight: 0.05,
+    price: 120,
+  },
+  {
+    name: "Pearl",
+    description: "A small sphere of luck and seawater.",
+    id: "pearl",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "treasure",
+    rarity: "epic",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 16,
+    weight: 0.02,
+    price: 420,
+  },
+  {
+    name: "Crown Fragment",
+    description: "A sharp piece of something that used to matter.",
+    id: "crownfragment",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "treasure",
+    rarity: "legendary",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 4,
+    weight: 0.2,
+    price: 2500,
+  },
+  {
+    name: "Research Log #2",
+    description:
+      "Entry 2: 'The gulls don't land anymore. They just orbit, like they're waiting for something to stop moving.'",
+    id: "researchlog2",
+    sprite: "./Source/Assets/Catches/researchlog1.png",
+    category: "lore",
+    rarity: "rare",
+    sellable: false,
+    catchable: 1,
+    stackable: 1,
+    weight: 0.01,
+    price: 0,
+  },
 ];
+
 
 
 /*

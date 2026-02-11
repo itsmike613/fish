@@ -1,77 +1,112 @@
 // fish/Source/Scripts/Game.js
-import { State } from './State.js';
-import { Renderer } from './Renderer.js';
-import { World } from './World.js';
-import { Player } from './Player.js';
-import { Inventory } from './Inventory.js';
-import { UI } from './UI.js';
-import { Fishing } from './Fishing.js';
+import { state } from "./State.js";
+import { events } from "./Events.js";
+import { Background } from "./Background.js";
+import { FishingUI } from "./FishingUI.js";
+import { InventoryUI } from "./InventoryUI.js";
+import { Toast } from "./Toast.js";
+import { load, save } from "./Save.js";
+import { rollLoot, getLootById, recordAward } from "./Roll.js";
+import { addToPlayer } from "./Inventory.js";
 
-export default class Game {
-  constructor(){
-    this.canvas = document.getElementById('c');
+export class Game {
+	constructor() {
+		load(state);
 
-    this.state = new State();
-    this.r = new Renderer(this.canvas);
-    this.world = new World(this.r.scene);
+		this.background = new Background();
+		this.fishingUI = new FishingUI();
+		this.inventoryUI = new InventoryUI(state);
+		this.toast = new Toast(document.getElementById("toast"));
 
-    this.inv = new Inventory(this.state);
-    this.player = new Player(this.state, this.r.camera, this.world, this.canvas);
-    this.ui = new UI(this.state, this.inv, this.player, this.canvas);
-    this.fish = new Fishing(this.state, this.world, this.r.camera, this.r.scene, this.inv);
+		this.setMode(state.uiMode);
 
-    this._last = performance.now();
-    this._run = (t) => this._tick(t);
+		events.on("fishingResult", (res) => this.onFishingResult(res));
+		events.on("inventoryChanged", () => save(state));
 
-    this._ctx = (e) => e.preventDefault();
-    document.addEventListener('contextmenu', this._ctx);
+		window.addEventListener("keydown", (e) => this.onKeyDown(e));
 
-    this._onDown = (e) => this._down(e);
-    window.addEventListener('pointerdown', this._onDown);
+		this.last = performance.now() / 1000;
+		this.raf = 0;
+	}
 
-    this._unload = () => this.state.save();
-    window.addEventListener('beforeunload', this._unload);
+	start() {
+		this.loop();
+	}
 
-    this.fish.restoreFromState();
-  }
+	setMode(mode) {
+		state.uiMode = mode;
 
-  _down(e){
-    if(e.button !== 2) return;
-    e.preventDefault();
+		const invOpen = mode === "inventory";
+		this.inventoryUI.setVisible(invOpen);
 
-    if(this.ui.open) return;
+		// Hotbar always visible; inventory panel only when open.
+		this.fishingUI.setVisible(!invOpen);
 
-    if(this.state.data.fishing && this.state.data.fishing.active){
-      this.fish.reel();
-      return;
-    }
+		this.inventoryUI.render();
+	}
 
-    this.fish.cast();
-  }
+	onKeyDown(e) {
+		if (e.repeat) return;
 
-  start(){
-    requestAnimationFrame(this._run);
-  }
+		if (e.key === "e" || e.key === "E") {
+			const next = state.uiMode === "inventory" ? "fishing" : "inventory";
+			this.setMode(next);
+			save(state);
+		}
+	}
 
-  _tick(t){
-    const dt = Math.min(0.033, (t - this._last) / 1000);
-    this._last = t;
+	onFishingResult(res) {
+		if (!res || typeof res !== "object") return;
 
-    this.player.update(dt);
-    this.world.update(this.player.pos);
-    this.fish.update(dt);
+		if (!res.ok) {
+			if (res.reason === "early") {
+				this.toast.show({ text: "Too early — the hook didn’t catch anything." });
+			} else {
+				this.toast.show({ text: "Too late — the fish got away." });
+			}
+			return;
+		}
 
-    this.r.render();
-    requestAnimationFrame(this._run);
-  }
+		const rolled = rollLoot(state.catchCounts);
+		if (!rolled) {
+			this.toast.show({ text: "Nothing bit." });
+			return;
+		}
 
-  dispose(){
-    document.removeEventListener('contextmenu', this._ctx);
-    window.removeEventListener('pointerdown', this._onDown);
-    window.removeEventListener('beforeunload', this._unload);
+		const item = getLootById(rolled.id);
+		if (!item) {
+			this.toast.show({ text: "Nothing bit." });
+			return;
+		}
 
-    this.ui.dispose();
-    this.player.dispose();
-    this.r.dispose();
-  }
+		const left = addToPlayer(state, rolled.id, rolled.qty);
+		const added = rolled.qty - left;
+
+		if (added <= 0) {
+			this.toast.show({ text: "Inventory full — the catch slipped away." });
+			return;
+		}
+
+		recordAward(state.catchCounts, rolled.id);
+
+		this.toast.show({
+			icon: item.sprite,
+			text: `You caught x${added} (${item.name})!`,
+		});
+
+		events.emit("inventoryChanged");
+		save(state);
+		this.inventoryUI.render();
+	}
+
+	loop() {
+		const now = performance.now() / 1000;
+		const dt = Math.min(0.05, Math.max(0, now - this.last));
+		this.last = now;
+
+		this.background.update(dt);
+		this.fishingUI.update(dt);
+
+		this.raf = requestAnimationFrame(() => this.loop());
+	}
 }
