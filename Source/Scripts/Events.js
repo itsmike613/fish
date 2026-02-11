@@ -1,26 +1,25 @@
 // fish/Source/Scripts/Events.js
 export class Events {
-	constructor() {
-		this.m = new Map();
-	}
+  constructor(){
+    this.m = new Map();
+  }
 
-	on(type, fn) {
-		if (!this.m.has(type)) this.m.set(type, new Set());
-		this.m.get(type).add(fn);
-	}
+  on(name, fn){
+    if(!this.m.has(name)) this.m.set(name, new Set());
+    this.m.get(name).add(fn);
+    return () => this.off(name, fn);
+  }
 
-	off(type, fn) {
-		const s = this.m.get(type);
-		if (!s) return;
-		s.delete(fn);
-		if (s.size === 0) this.m.delete(type);
-	}
+  off(name, fn){
+    const s = this.m.get(name);
+    if(!s) return;
+    s.delete(fn);
+    if(s.size === 0) this.m.delete(name);
+  }
 
-	emit(type, data) {
-		const s = this.m.get(type);
-		if (!s) return;
-		for (const fn of s) fn(data);
-	}
+  emit(name, data){
+    const s = this.m.get(name);
+    if(!s) return;
+    for(const fn of s) fn(data);
+  }
 }
-
-export const events = new Events();

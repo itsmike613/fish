@@ -1,137 +1,202 @@
 // fish/Source/Scripts/Player.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-function clamp(v, a, b) {
-	return Math.max(a, Math.min(b, v));
+function clamp(v, a, b){
+  return Math.max(a, Math.min(b, v));
 }
 
-function approach(cur, target, maxDelta) {
-	const d = target - cur;
-	if (Math.abs(d) <= maxDelta) return target;
-	return cur + Math.sign(d) * maxDelta;
-}
+export class Player {
+  constructor(state, camera, world, canvas){
+    this.state = state;
+    this.camera = camera;
+    this.world = world;
+    this.canvas = canvas;
 
-export default class Player {
-	constructor(camera, world) {
-		this.camera = camera;
-		this.world = world;
+    const p = state.data.player;
 
-		this.pos = new THREE.Vector3(0, 1.0, 0);
-		this.vel = new THREE.Vector3(0, 0, 0);
+    this.pos = new THREE.Vector3(p.x, p.y, p.z);
+    this.vel = new THREE.Vector3(0, 0, 0);
 
-		this.yaw = 0;
-		this.pitch = 0;
+    this.yaw = p.yaw || 0;
+    this.pitch = clamp(p.pitch || 0, -Math.PI/2 + 0.001, Math.PI/2 - 0.001);
 
-		this.eye = 1.62;
-		this.h = 1.8;
-		this.r = 0.3;
+    this.eye = 1.62;
+    this.h = 1.8;
+    this.r = 0.3;
 
-		this.onGround = true;
+    this.onGround = true;
 
-		// tuned to match Minecraft-like feel
-		this.walk = 4.317;
-		this.sprint = 5.612;
-		this.jumpV = 8.4;
-		this.g = 32.0;
+    this.enabled = true;
+    this.lookEnabled = true;
 
-		this.accelGround = 42.0;
-		this.accelAir = 12.0;
-		this.frictionGround = 18.0;
-		this.frictionAir = 1.2;
+    this.keys = new Set();
 
-		this.sense = 0.0022;
+    this.walk = 4.317;
+    this.sprint = 5.612;
+    this.jump = 7.75;
+    this.g = 24.0;
 
-		this._wantJump = false;
-	}
+    this.groundAccel = 40.0;
+    this.airAccel = 10.0;
+    this.groundFriction = 18.0;
 
-	onMouseMove(dx, dy) {
-		this.yaw -= dx * this.sense;
-		this.pitch -= dy * this.sense;
-		this.pitch = clamp(this.pitch, -Math.PI / 2 + 0.001, Math.PI / 2 - 0.001);
-	}
+    this._mouse = (e) => this._onMouse(e);
+    this._down = (e) => this._onDown(e);
+    this._up = (e) => this._onUp(e);
 
-	setJumpPressed(v) {
-		if (v) this._wantJump = true;
-	}
+    document.addEventListener('mousemove', this._mouse, { passive:true });
+    window.addEventListener('keydown', this._down);
+    window.addEventListener('keyup', this._up);
 
-	update(dt, input, allowMove) {
-		const prev = this.pos.clone();
+    this._syncCam();
+  }
 
-		const keys = input || {};
-		const fwd = (keys.w ? 1 : 0) + (keys.s ? -1 : 0);
-		const str = (keys.d ? 1 : 0) + (keys.a ? -1 : 0);
+  setEnabled(v){
+    this.enabled = !!v;
+  }
 
-		let wish = new THREE.Vector3(0, 0, 0);
-		if (allowMove) {
-			if (fwd !== 0 || str !== 0) {
-				const sin = Math.sin(this.yaw);
-				const cos = Math.cos(this.yaw);
+  setLook(v){
+    this.lookEnabled = !!v;
+  }
 
-				const fx = sin;
-				const fz = cos;
-				const rx = cos;
-				const rz = -sin;
+  _isLocked(){
+    return document.pointerLockElement === this.canvas;
+  }
 
-				wish.x = fx * fwd + rx * str;
-				wish.z = fz * fwd + rz * str;
-				wish.normalize();
-			}
-		}
+  _onMouse(e){
+    if(!this.lookEnabled) return;
+    if(!this._isLocked()) return;
 
-		const moving = wish.lengthSq() > 0;
-		const max = allowMove && keys.ctrl && moving ? this.sprint : this.walk;
+    const mx = e.movementX || 0;
+    const my = e.movementY || 0;
 
-		const accel = this.onGround ? this.accelGround : this.accelAir;
+    const sens = 0.0022;
 
-		if (moving) {
-			const dx = wish.x * max;
-			const dz = wish.z * max;
-			this.vel.x = approach(this.vel.x, dx, accel * dt);
-			this.vel.z = approach(this.vel.z, dz, accel * dt);
-		} else {
-			const fr = this.onGround ? this.frictionGround : this.frictionAir;
-			const k = Math.exp(-fr * dt);
-			this.vel.x *= k;
-			this.vel.z *= k;
-			if (Math.abs(this.vel.x) < 0.0008) this.vel.x = 0;
-			if (Math.abs(this.vel.z) < 0.0008) this.vel.z = 0;
-		}
+    this.yaw -= mx * sens;
+    this.pitch -= my * sens;
 
-		if (allowMove && this._wantJump && this.onGround) {
-			this.vel.y = this.jumpV;
-			this.onGround = false;
-		}
-		this._wantJump = false;
+    this.pitch = clamp(this.pitch, -Math.PI/2 + 0.001, Math.PI/2 - 0.001);
+  }
 
-		this.vel.y -= this.g * dt;
+  _onDown(e){
+    if(e.code === 'Space') e.preventDefault();
+    this.keys.add(e.code);
+  }
 
-		this.pos.x += this.vel.x * dt;
-		this.pos.y += this.vel.y * dt;
-		this.pos.z += this.vel.z * dt;
+  _onUp(e){
+    this.keys.delete(e.code);
+  }
 
-		// ground
-		const groundY = 1.0;
-		if (this.pos.y <= groundY) {
-			this.pos.y = groundY;
-			this.vel.y = 0;
-			this.onGround = true;
-		} else {
-			this.onGround = false;
-		}
+  requestLock(){
+    if(this._isLocked()) return;
+    if(!this.lookEnabled) return;
+    this.canvas.requestPointerLock?.();
+  }
 
-		// shoreline block
-		if (!this.world.isAllowedXZ(this.pos.x, this.pos.z, this.r)) {
-			this.pos.x = prev.x;
-			this.pos.z = prev.z;
-			this.vel.x = 0;
-			this.vel.z = 0;
-		}
+  unlock(){
+    if(this._isLocked()) document.exitPointerLock?.();
+  }
 
-		// camera
-		this.camera.position.set(this.pos.x, this.pos.y + this.eye, this.pos.z);
-		this.camera.rotation.order = 'YXZ';
-		this.camera.rotation.y = this.yaw;
-		this.camera.rotation.x = this.pitch;
-		this.camera.rotation.z = 0;
-	}
+  _dir(){
+    const f = (this.keys.has('KeyW') ? 1 : 0) + (this.keys.has('KeyS') ? -1 : 0);
+    const s = (this.keys.has('KeyD') ? 1 : 0) + (this.keys.has('KeyA') ? -1 : 0);
+    return { f, s };
+  }
+
+  _syncCam(){
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = this.pitch;
+    this.camera.position.set(this.pos.x, this.pos.y + this.eye, this.pos.z);
+  }
+
+  update(dt){
+    if(!this.enabled){
+      this.vel.x = 0;
+      this.vel.z = 0;
+      this._syncCam();
+      this.state.setPlayer({ x:this.pos.x, y:this.pos.y, z:this.pos.z, yaw:this.yaw, pitch:this.pitch });
+      return;
+    }
+
+    const { f, s } = this._dir();
+    const run = this.keys.has('ControlLeft') || this.keys.has('ControlRight');
+    const speed = run ? this.sprint : this.walk;
+
+    const sin = Math.sin(this.yaw);
+    const cos = Math.cos(this.yaw);
+
+    let ix = 0;
+    let iz = 0;
+
+    if(f !== 0 || s !== 0){
+      let lx = s;
+      let lz = f;
+
+      const len = Math.hypot(lx, lz);
+      lx /= len;
+      lz /= len;
+
+      ix = lx * cos - lz * sin;
+      iz = lx * sin + lz * cos;
+    }
+
+    const targetX = ix * speed;
+    const targetZ = iz * speed;
+
+    const accel = this.onGround ? this.groundAccel : this.airAccel;
+
+    this.vel.x += (targetX - this.vel.x) * clamp(accel * dt, 0, 1);
+    this.vel.z += (targetZ - this.vel.z) * clamp(accel * dt, 0, 1);
+
+    if(this.onGround && f === 0 && s === 0){
+      const fr = clamp(this.groundFriction * dt, 0, 1);
+      this.vel.x *= (1 - fr);
+      this.vel.z *= (1 - fr);
+    }
+
+    if(this.keys.has('Space') && this.onGround){
+      this.vel.y = this.jump;
+      this.onGround = false;
+    }
+
+    this.vel.y -= this.g * dt;
+
+    let nx = this.pos.x + this.vel.x * dt;
+    let nz = this.pos.z;
+
+    if(this.world.canStand(nx, nz, this.r)){
+      this.pos.x = nx;
+    }else{
+      this.vel.x = 0;
+    }
+
+    nx = this.pos.x;
+    nz = this.pos.z + this.vel.z * dt;
+
+    if(this.world.canStand(nx, nz, this.r)){
+      this.pos.z = nz;
+    }else{
+      this.vel.z = 0;
+    }
+
+    this.pos.y += this.vel.y * dt;
+
+    if(this.pos.y <= this.world.sandTop){
+      this.pos.y = this.world.sandTop;
+      this.vel.y = 0;
+      this.onGround = true;
+    }else{
+      this.onGround = false;
+    }
+
+    this._syncCam();
+    this.state.setPlayer({ x:this.pos.x, y:this.pos.y, z:this.pos.z, yaw:this.yaw, pitch:this.pitch });
+  }
+
+  dispose(){
+    document.removeEventListener('mousemove', this._mouse);
+    window.removeEventListener('keydown', this._down);
+    window.removeEventListener('keyup', this._up);
+  }
 }

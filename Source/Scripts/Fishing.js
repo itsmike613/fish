@@ -1,277 +1,335 @@
 // fish/Source/Scripts/Fishing.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { loot } from './Loot.js';
-import { getCatch, incCatch } from './State.js';
-import { events } from './Events.js';
 
-function clamp01(t) {
-  return Math.max(0, Math.min(1, t));
+function rand(a, b){
+  return a + Math.random() * (b - a);
 }
 
-function lerp(a, b, t) {
-  return a + (b - a) * t;
+function now(){
+  return Date.now();
 }
 
-function rgb(r, g, b) {
-  r = Math.max(0, Math.min(255, r | 0));
-  g = Math.max(0, Math.min(255, g | 0));
-  b = Math.max(0, Math.min(255, b | 0));
-  return `rgb(${r},${g},${b})`;
+function lootById(){
+  const m = new Map();
+  for(const it of loot) m.set(it.id, it);
+  return m;
 }
 
-function easeIn(t) {
-  return t * t;
-}
+const lootMap = lootById();
 
-export default class Fishing {
-  constructor(scene, camera, world, inventory) {
-    this.scene = scene;
-    this.camera = camera;
+export class Fishing {
+  constructor(state, world, camera, scene, inv){
+    this.state = state;
     this.world = world;
-    this.inv = inventory;
+    this.camera = camera;
+    this.scene = scene;
+    this.inv = inv;
+
+    this.active = false;
+    this.bob = null;
+    this.line = null;
+
+    this.castAt = 0;
+    this.biteAt = 0;
+    this.biteTime = 0;
+    this.expired = false;
+
+    this._biteTimer = null;
+    this._expireTimer = null;
+
+    this.parts = [];
+    this._partTick = 0;
+
+    this._bobY = world.waterY + 0.06;
+    this._dipT = 0;
 
     this.ray = new THREE.Raycaster();
-    this.v2 = new THREE.Vector2(0, 0);
+    this._tmpV = new THREE.Vector3();
+    this._tmpV2 = new THREE.Vector3();
+  }
+
+  _saveFishing(){
+    const f = {
+      active: this.active,
+      x: this.bob ? this.bob.position.x : 0,
+      y: this.bob ? this.bob.position.y : 0,
+      z: this.bob ? this.bob.position.z : 0,
+      castAt: this.castAt,
+      biteAt: this.biteAt,
+      biteTime: this.biteTime,
+      expired: this.expired
+    };
+    this.state.setFishing(f);
+    this.state.save();
+  }
+
+  _clearTimers(){
+    if(this._biteTimer){ clearTimeout(this._biteTimer); this._biteTimer = null; }
+    if(this._expireTimer){ clearTimeout(this._expireTimer); this._expireTimer = null; }
+  }
+
+  _removeParts(){
+    for(const p of this.parts) this.scene.remove(p.m);
+    this.parts.length = 0;
+  }
+
+  _removeCast(){
+    if(this.line){ this.scene.remove(this.line); this.line.geometry.dispose(); this.line = null; }
+    if(this.bob){ this.scene.remove(this.bob); this.bob.geometry.dispose(); this.bob.material.dispose(); this.bob = null; }
+    this._removeParts();
+    this._clearTimers();
 
     this.active = false;
-    this.state = 'none'; // waiting | bitten
     this.castAt = 0;
-    this.wait = 0;
     this.biteAt = 0;
+    this.biteTime = 0;
+    this.expired = false;
+    this._dipT = 0;
 
-    this.bobber = null;
-    this.line = null;
-    this.lineGeo = null;
-
-    this.spawnT = 0;
-    this.particles = [];
-
-    this._hud = { show: false, text: '', color: '#00ff00', pos: new THREE.Vector3() };
-
-    this.pMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false });
-    this.pGeo = new THREE.PlaneGeometry(0.12, 0.12);
+    this._saveFishing();
   }
 
-  _hasRodSelected(slot) {
-    const it = this.inv.hot[slot];
-    return !!it && it.id === 'fishingrod';
+  _makeBob(pos){
+    const g = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const m = new THREE.MeshBasicMaterial({ color: 0xff4040 });
+    const bob = new THREE.Mesh(g, m);
+    bob.position.copy(pos);
+    this.scene.add(bob);
+    return bob;
   }
 
-  tryCastOrReel(now, slot) {
-    if (this.active) {
-      this._reel(now);
-      return;
-    }
-    if (!this._hasRodSelected(slot)) return;
-    this._cast(now);
-  }
-
-  _cast(now) {
-    this.ray.setFromCamera(this.v2, this.camera);
-    const hits = this.ray.intersectObjects(this.world.getRayTargets(), false);
-    if (!hits.length) return;
-
-    const hit = hits[0];
-    if (hit.object !== this.world.water) return;
-
-    const p = hit.point;
-    if (!this.world.isWaterAt(p.x, p.z)) return;
-
-    // spawn bobber at hit point
-    const g = new THREE.SphereGeometry(0.08, 10, 10);
-    const m = new THREE.MeshStandardMaterial({ color: 0xff4d4d, roughness: 0.6, metalness: 0.0 });
-    const b = new THREE.Mesh(g, m);
-    b.position.set(p.x, this.world.waterY + 0.05, p.z);
-    this.scene.add(b);
-
-    // line
-    const geo = new THREE.BufferGeometry();
+  _makeLine(){
+    const g = new THREE.BufferGeometry();
     const arr = new Float32Array(6);
-    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-    const lm = new THREE.LineBasicMaterial({ color: 0x0c0c0c, transparent: true, opacity: 0.9 });
-    const line = new THREE.Line(geo, lm);
-    this.scene.add(line);
-
-    this.active = true;
-    this.state = 'waiting';
-    this.castAt = now;
-    this.wait = Math.random() * 10.0;
-    this.biteAt = 0;
-
-    this.bobber = b;
-    this.line = line;
-    this.lineGeo = geo;
-
-    this.spawnT = 0;
-    this._hud.show = false;
-
-    events.emit('fishing:cast', null);
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const m = new THREE.LineBasicMaterial({ color: 0x111111 });
+    const l = new THREE.Line(g, m);
+    this.scene.add(l);
+    return l;
   }
 
-  _cleanup() {
-    if (this.bobber) this.scene.remove(this.bobber);
-    if (this.line) this.scene.remove(this.line);
-
-    for (const p of this.particles) {
-      this.scene.remove(p.m);
-    }
-    this.particles.length = 0;
-
-    this.bobber = null;
-    this.line = null;
-    this.lineGeo = null;
-
-    this.active = false;
-    this.state = 'none';
-    this._hud.show = false;
-  }
-
-  _availableLoot() {
-    const out = [];
-    for (const it of loot) {
-      const n = getCatch(it.id);
-      const lim = it.catchable;
-      if (lim === Infinity || n < lim) out.push(it);
-    }
-    return out;
-  }
-
-  _pickLoot() {
-    const a = this._availableLoot();
-    if (!a.length) return null;
+  _pickLoot(){
+    const catches = this.state.data.catches || {};
+    const pool = [];
 
     let sum = 0;
-    for (const it of a) sum += it.weight;
-
-    let r = Math.random() * sum;
-    for (const it of a) {
-      r -= it.weight;
-      if (r <= 0) return it;
+    for(const it of loot){
+      const got = catches[it.id] || 0;
+      const cap = it.catchable;
+      const ok = (cap === Infinity) || (got < cap);
+      if(!ok) continue;
+      const w = +it.weight || 0;
+      if(w <= 0) continue;
+      sum += w;
+      pool.push({ it, sum });
     }
-    return a[a.length - 1];
+
+    if(pool.length === 0) return null;
+
+    const r = Math.random() * sum;
+    for(const p of pool){
+      if(r <= p.sum) return p.it;
+    }
+    return pool[pool.length - 1].it;
   }
 
-  _reel(now) {
+  cast(){
+    if(this.active) return;
+
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    this.ray.set(this.camera.position, dir);
+
+    const hit = this.world.raycastFirst(this.ray);
+    if(!hit) return;
+
+    if(hit.object !== this.world.water) return;
+
+    const p = hit.point.clone();
+    p.y = this._bobY;
+
+    this.active = true;
+    this.castAt = now();
+    this.biteTime = 0;
+    this.expired = false;
+
+    this.bob = this._makeBob(p);
+    this.line = this._makeLine();
+
+    const wait = rand(0, 10) * 1000;
+    this.biteAt = this.castAt + wait;
+
+    this._clearTimers();
+    this._biteTimer = setTimeout(() => this._bite(), wait);
+
+    this._saveFishing();
+  }
+
+  _bite(){
+    if(!this.active || !this.bob) return;
+
+    this.biteTime = now();
+    this.expired = false;
+    this._dipT = 0;
+
+    this._clearTimers();
+    this._expireTimer = setTimeout(() => {
+      this.expired = true;
+      this._saveFishing();
+    }, 1500);
+
+    this._saveFishing();
+  }
+
+  reel(){
+    if(!this.active) return;
+
+    const t = now();
     let ok = false;
-    if (this.state === 'bitten') {
-      if (now - this.biteAt <= 1.5) ok = true;
-    }
 
-    if (ok) {
-      const it = this._pickLoot();
-      if (it) {
-        const added = this.inv.addItem(it.id, 1);
-        if (added) incCatch(it.id);
-        events.emit('fishing:success', { id: it.id });
-      } else {
-        events.emit('fishing:success', { id: null });
+    if(this.biteTime > 0 && !this.expired){
+      if((t - this.biteTime) <= 1500){
+        ok = true;
       }
-    } else {
-      events.emit('fishing:fail', null);
     }
 
-    this._cleanup();
-  }
+    if(ok){
+      const it = this._pickLoot();
+      if(it){
+        this.state.incCatch(it.id, 1);
 
-  _spawnParticle() {
-    if (!this.bobber) return;
+        this.inv.add(it.id, 1);
 
-    const bx = this.bobber.position.x;
-    const bz = this.bobber.position.z;
-
-    const a = Math.random() * Math.PI * 2;
-    const d = 3.2 + Math.random() * 6.5;
-    const sx = bx + Math.cos(a) * d;
-    const sz = bz + Math.sin(a) * d;
-
-    const m = new THREE.Mesh(this.pGeo, this.pMat.clone());
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(sx, this.world.waterY + 0.01, sz);
-
-    const dx = bx - sx;
-    const dz = bz - sz;
-    const len = Math.hypot(dx, dz) || 1;
-
-    const travel = 0.55 + Math.random() * 0.75;
-    const sp = len / travel;
-
-    const vx = (dx / len) * sp;
-    const vz = (dz / len) * sp;
-
-    this.scene.add(m);
-    this.particles.push({ m, vx, vz, t: 0, life: travel });
-  }
-
-  update(dt, now) {
-    if (!this.active) return;
-
-    // line follows camera -> bobber
-    if (this.lineGeo && this.bobber) {
-      const a = this.lineGeo.attributes.position.array;
-      a[0] = this.camera.position.x;
-      a[1] = this.camera.position.y - 0.15;
-      a[2] = this.camera.position.z;
-      a[3] = this.bobber.position.x;
-      a[4] = this.bobber.position.y;
-      a[5] = this.bobber.position.z;
-      this.lineGeo.attributes.position.needsUpdate = true;
+        this.state.emit('catch', it.id);
+        this.state.save();
+      }
     }
 
-    // particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
+    this._removeCast();
+  }
+
+  update(dt){
+    if(!this.active || !this.bob || !this.line) return;
+
+    const camPos = this.camera.position;
+    const posAttr = this.line.geometry.getAttribute('position');
+    posAttr.setXYZ(0, camPos.x, camPos.y, camPos.z);
+    posAttr.setXYZ(1, this.bob.position.x, this.bob.position.y, this.bob.position.z);
+    posAttr.needsUpdate = true;
+
+    if(this.biteTime > 0){
+      this._dipT += dt;
+
+      const a = Math.min(this._dipT / 0.18, 1);
+      const dip = Math.sin(a * Math.PI) * 0.16;
+
+      this.bob.position.y = this._bobY - dip;
+      if(a >= 1){
+        this.bob.position.y = this._bobY;
+      }
+    }else{
+      this.bob.position.y = this._bobY;
+    }
+
+    this._partTick += dt;
+    if(this._partTick >= 0.12){
+      this._partTick = 0;
+      this._spawnPart();
+    }
+
+    for(let i=this.parts.length-1; i>=0; i--){
+      const p = this.parts[i];
       p.t += dt;
-      const k = clamp01(1 - (p.t / p.life));
-      p.m.material.opacity = lerp(0.0, 0.8, k);
+
       p.m.position.x += p.vx * dt;
       p.m.position.z += p.vz * dt;
-      if (p.t >= p.life) {
+
+      const dx = this.bob.position.x - p.m.position.x;
+      const dz = this.bob.position.z - p.m.position.z;
+      const d = Math.hypot(dx, dz);
+
+      if(d < 0.25 || p.t > 2.0){
         this.scene.remove(p.m);
-        this.particles.splice(i, 1);
+        p.m.geometry.dispose();
+        p.m.material.dispose();
+        this.parts.splice(i, 1);
+        continue;
       }
-    }
 
-    if (this.state === 'waiting') {
-      const end = this.castAt + this.wait;
-      const rem = end - now;
-
-      if (rem <= 0) {
-        this.state = 'bitten';
-        this.biteAt = now;
-        this._hud.show = false;
-        events.emit('fishing:bite', null);
-      } else {
-        if (rem <= 5.0) {
-          // countdown above bobber
-          const t = clamp01(rem / 5.0);
-          const r = lerp(255, 0, t); // green -> red over last 5s
-          const g = lerp(0, 255, t);
-          this._hud.show = true;
-          this._hud.text = `(${rem.toFixed(1)}s)`;
-          this._hud.color = rgb(r, g, 0);
-          if (this.bobber) this._hud.pos.copy(this.bobber.position).add(new THREE.Vector3(0, 0.55, 0));
-
-          // fish approach trail
-          this.spawnT += dt;
-          while (this.spawnT >= 0.12) {
-            this.spawnT -= 0.12;
-            this._spawnParticle();
-          }
-        } else {
-          this._hud.show = false;
-        }
-      }
-    } else if (this.state === 'bitten') {
-      if (this.bobber) {
-        const t = clamp01((now - this.biteAt) / 0.25);
-        const dip = easeIn(t) * 0.25;
-        this.bobber.position.y = this.world.waterY + 0.05 - dip;
-      }
+      p.m.position.y = this.world.waterY + 0.02;
     }
   }
 
-  getHud() {
-    if (!this.active) return { show: false };
-    return this._hud;
+  _spawnPart(){
+    if(!this.active || !this.bob) return;
+    if(this.parts.length > 48) return;
+
+    const r = rand(3.0, 6.0);
+    const a = rand(0, Math.PI * 2);
+
+    const sx = this.bob.position.x + Math.cos(a) * r;
+    const sz = this.bob.position.z + Math.sin(a) * r;
+
+    const dx = this.bob.position.x - sx;
+    const dz = this.bob.position.z - sz;
+    const d = Math.hypot(dx, dz) || 1;
+
+    const sp = rand(2.8, 4.4);
+    const vx = (dx / d) * sp;
+    const vz = (dz / d) * sp;
+
+    const g = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+    const m = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const o = new THREE.Mesh(g, m);
+    o.position.set(sx, this.world.waterY + 0.02, sz);
+    this.scene.add(o);
+
+    this.parts.push({ m: o, vx, vz, t: 0 });
+  }
+
+  restoreFromState(){
+    const f = this.state.data.fishing;
+    if(!f || !f.active) return;
+
+    this._removeCast();
+
+    this.active = true;
+    this.castAt = +f.castAt || now();
+    this.biteAt = +f.biteAt || 0;
+    this.biteTime = +f.biteTime || 0;
+    this.expired = !!f.expired;
+
+    const p = new THREE.Vector3(+f.x || 0, +f.y || this._bobY, +f.z || 0);
+    if(p.y === 0) p.y = this._bobY;
+    this.bob = this._makeBob(p);
+    this.line = this._makeLine();
+
+    const t = now();
+
+    this._clearTimers();
+
+    if(this.biteTime > 0){
+      if((t - this.biteTime) > 1500){
+        this.expired = true;
+      }else if(!this.expired){
+        const rem = 1500 - (t - this.biteTime);
+        this._expireTimer = setTimeout(() => {
+          this.expired = true;
+          this._saveFishing();
+        }, rem);
+      }
+    }else{
+      if(this.biteAt > 0){
+        if(t >= this.biteAt){
+          this._bite();
+        }else{
+          const rem = this.biteAt - t;
+          this._biteTimer = setTimeout(() => this._bite(), rem);
+        }
+      }
+    }
+
+    this._saveFishing();
   }
 }

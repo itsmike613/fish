@@ -1,124 +1,77 @@
 // fish/Source/Scripts/Game.js
-import Renderer from './Renderer.js';
-import World from './World.js';
-import Player from './Player.js';
-import UI from './UI.js';
-import Inventory from './Inventory.js';
-import Fishing from './Fishing.js';
-import { get, set, toggleInv, setSlot } from './State.js';
+import { State } from './State.js';
+import { Renderer } from './Renderer.js';
+import { World } from './World.js';
+import { Player } from './Player.js';
+import { Inventory } from './Inventory.js';
+import { UI } from './UI.js';
+import { Fishing } from './Fishing.js';
 
 export default class Game {
-  constructor() {
-    this.renderer = new Renderer();
-    this.world = new World(this.renderer.scene);
-    this.inv = new Inventory();
-    this.player = new Player(this.renderer.camera, this.world);
-    this.fishing = new Fishing(this.renderer.scene, this.renderer.camera, this.world, this.inv);
-    this.ui = new UI(this.inv, this.renderer, this.fishing);
+  constructor(){
+    this.canvas = document.getElementById('c');
 
-    this.keys = {
-      w: false, a: false, s: false, d: false,
-      ctrl: false,
-    };
+    this.state = new State();
+    this.r = new Renderer(this.canvas);
+    this.world = new World(this.r.scene);
 
-    this._last = performance.now() / 1000;
+    this.inv = new Inventory(this.state);
+    this.player = new Player(this.state, this.r.camera, this.world, this.canvas);
+    this.ui = new UI(this.state, this.inv, this.player, this.canvas);
+    this.fish = new Fishing(this.state, this.world, this.r.camera, this.r.scene, this.inv);
 
-    this._bind();
+    this._last = performance.now();
+    this._run = (t) => this._tick(t);
+
+    this._ctx = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', this._ctx);
+
+    this._onDown = (e) => this._down(e);
+    window.addEventListener('pointerdown', this._onDown);
+
+    this._unload = () => this.state.save();
+    window.addEventListener('beforeunload', this._unload);
+
+    this.fish.restoreFromState();
   }
 
-  async start() {
-    await this.world.init();
-    this.renderer.resize();
-    this.inv.spawnStart();
-    this._loop();
+  _down(e){
+    if(e.button !== 2) return;
+    e.preventDefault();
+
+    if(this.ui.open) return;
+
+    if(this.state.data.fishing && this.state.data.fishing.active){
+      this.fish.reel();
+      return;
+    }
+
+    this.fish.cast();
   }
 
-  _bind() {
-    // prevent context menu
-    window.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // click to lock pointer (only when inventory closed)
-    this.renderer.r.domElement.addEventListener('mousedown', (e) => {
-      if (e.button === 0) {
-        if (!get('invOpen') && !get('pointerLocked')) this.renderer.lockPointer();
-      }
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!get('pointerLocked')) return;
-      if (get('invOpen')) return;
-      this.player.onMouseMove(e.movementX || 0, e.movementY || 0);
-    });
-
-    document.addEventListener('mousedown', (e) => {
-      if (e.button !== 2) return;
-      if (!get('pointerLocked')) return;
-      if (get('invOpen')) return;
-
-      const slot = get('slot');
-      this.fishing.tryCastOrReel(performance.now() / 1000, slot);
-    });
-
-    document.addEventListener('keydown', (e) => {
-      const code = e.code;
-
-      if (code === 'KeyE') {
-        toggleInv();
-        if (get('invOpen')) {
-          this.renderer.unlockPointer();
-        }
-        return;
-      }
-
-      if (get('invOpen')) return;
-
-      if (code === 'KeyW') this.keys.w = true;
-      else if (code === 'KeyA') this.keys.a = true;
-      else if (code === 'KeyS') this.keys.s = true;
-      else if (code === 'KeyD') this.keys.d = true;
-      else if (code === 'ControlLeft' || code === 'ControlRight') this.keys.ctrl = true;
-      else if (code === 'Space') this.player.setJumpPressed(true);
-      else if (code.startsWith('Digit')) {
-        const n = (code === 'Digit0') ? 10 : parseInt(code.slice(5), 10);
-        if (Number.isFinite(n) && n >= 1 && n <= 9) setSlot(n - 1);
-      }
-    });
-
-    document.addEventListener('keyup', (e) => {
-      const code = e.code;
-
-      if (code === 'KeyW') this.keys.w = false;
-      else if (code === 'KeyA') this.keys.a = false;
-      else if (code === 'KeyS') this.keys.s = false;
-      else if (code === 'KeyD') this.keys.d = false;
-      else if (code === 'ControlLeft' || code === 'ControlRight') this.keys.ctrl = false;
-    });
-
-    // keep key state sane on blur
-    window.addEventListener('blur', () => {
-      this.keys.w = this.keys.a = this.keys.s = this.keys.d = false;
-      this.keys.ctrl = false;
-    });
-
-    // keep hint visibility accurate on pointer lock changes
-    document.addEventListener('pointerlockchange', () => {
-      set('pointerLocked', document.pointerLockElement === this.renderer.r.domElement);
-    });
+  start(){
+    requestAnimationFrame(this._run);
   }
 
-  _loop() {
-    const now = performance.now() / 1000;
-    const dt = Math.min(0.05, Math.max(0.0, now - this._last));
-    this._last = now;
+  _tick(t){
+    const dt = Math.min(0.033, (t - this._last) / 1000);
+    this._last = t;
 
-    const allowMove = get('pointerLocked') && !get('invOpen');
+    this.player.update(dt);
+    this.world.update(this.player.pos);
+    this.fish.update(dt);
 
-    this.world.update(dt);
-    this.player.update(dt, this.keys, allowMove);
-    this.fishing.update(dt, now);
-    this.ui.update();
+    this.r.render();
+    requestAnimationFrame(this._run);
+  }
 
-    this.renderer.render();
-    requestAnimationFrame(() => this._loop());
+  dispose(){
+    document.removeEventListener('contextmenu', this._ctx);
+    window.removeEventListener('pointerdown', this._onDown);
+    window.removeEventListener('beforeunload', this._unload);
+
+    this.ui.dispose();
+    this.player.dispose();
+    this.r.dispose();
   }
 }

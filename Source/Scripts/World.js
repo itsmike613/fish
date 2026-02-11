@@ -1,171 +1,111 @@
 // fish/Source/Scripts/World.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-function loadTex(url) {
-	const loader = new THREE.TextureLoader();
-	return new Promise((resolve, reject) => {
-		loader.load(
-			url,
-			(t) => resolve(t),
-			undefined,
-			(e) => reject(e)
-		);
-	});
+function tex(url, repeatX=1, repeatY=1){
+  const t = new THREE.TextureLoader().load(url);
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeatX, repeatY);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestMipmapNearestFilter;
+  return t;
 }
 
-export default class World {
-	constructor(scene) {
-		this.scene = scene;
+export class World {
+  constructor(scene){
+    this.scene = scene;
 
-		this.waterY = 0.8;
-		this.floorY = -20;
+    this.sandTex = tex('./Source/Assets/Terrain/sand.png', 1, 1);
+    this.waterTex = tex('./Source/Assets/Terrain/water.png', 200, 200);
 
-		this.size = 12;
-		this.half = this.size / 2;
-		this.radius = 5.8;
+    this.sandMat = new THREE.MeshLambertMaterial({ map: this.sandTex });
+    this.waterMat = new THREE.MeshLambertMaterial({ map: this.waterTex });
 
-		this.tiles = new Set();
-		this.sand = null;
-		this.water = null;
-		this.floor = null;
+    this.sand = [];
+    this.sandSet = new Set();
 
-		this._sandTex = null;
-		this._waterTex = null;
-		this._t = 0;
-	}
+    this.waterY = 0.8;
+    this.sandTop = 1.0;
 
-	async init() {
-		this._sandTex = await loadTex('./Source/Assets/Terrain/sand.png');
-		this._waterTex = await loadTex('./Source/Assets/Terrain/water.png');
+    this._buildIsland();
+    this._buildWater();
+  }
 
-		for (const t of [this._sandTex, this._waterTex]) {
-			t.colorSpace = THREE.SRGBColorSpace;
-			t.wrapS = THREE.RepeatWrapping;
-			t.wrapT = THREE.RepeatWrapping;
-			t.magFilter = THREE.NearestFilter;
-			t.minFilter = THREE.NearestMipMapNearestFilter;
-		}
+  _key(ix, iz){
+    return `${ix},${iz}`;
+  }
 
-		this._buildIsland();
-		this._buildWater();
-		this._buildFloor();
-	}
+  _buildIsland(){
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    const r = 6.0;
 
-	_buildIsland() {
-		const geom = new THREE.BoxGeometry(1, 1, 1);
-		const mat = new THREE.MeshStandardMaterial({
-			map: this._sandTex,
-			roughness: 1.0,
-			metalness: 0.0,
-		});
+    for(let iz=0; iz<12; iz++){
+      for(let ix=0; ix<12; ix++){
+        const cx = -5.5 + ix;
+        const cz = -5.5 + iz;
 
-		const centers = [];
-		for (let iz = 0; iz < this.size; iz++) {
-			for (let ix = 0; ix < this.size; ix++) {
-				const cx = (ix - (this.half - 0.5));
-				const cz = (iz - (this.half - 0.5));
-				const d = Math.hypot(cx, cz);
-				if (d <= this.radius) {
-					const key = `${ix},${iz}`;
-					this.tiles.add(key);
-					centers.push([cx, cz]);
-				}
-			}
-		}
+        const d = Math.hypot(cx, cz);
+        if(d <= r){
+          const m = new THREE.Mesh(g, this.sandMat);
+          m.position.set(cx, 0.5, cz);
+          m.castShadow = false;
+          m.receiveShadow = false;
+          this.scene.add(m);
+          this.sand.push(m);
+          this.sandSet.add(this._key(ix, iz));
+        }
+      }
+    }
+  }
 
-		const mesh = new THREE.InstancedMesh(geom, mat, centers.length);
-		mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-		mesh.frustumCulled = true;
+  _buildWater(){
+    const g = new THREE.PlaneGeometry(12000, 12000, 1, 1);
+    g.rotateX(-Math.PI / 2);
+    this.water = new THREE.Mesh(g, this.waterMat);
+    this.water.position.set(0, this.waterY, 0);
+    this.water.frustumCulled = false;
+    this.scene.add(this.water);
+  }
 
-		const m = new THREE.Matrix4();
-		const p = new THREE.Vector3();
-		const q = new THREE.Quaternion();
-		const s = new THREE.Vector3(1, 1, 1);
+  update(playerPos){
+    this.water.position.x = playerPos.x;
+    this.water.position.z = playerPos.z;
+  }
 
-		for (let i = 0; i < centers.length; i++) {
-			p.set(centers[i][0], 0.5, centers[i][1]);
-			m.compose(p, q, s);
-			mesh.setMatrixAt(i, m);
-		}
-		mesh.instanceMatrix.needsUpdate = true;
+  _tileIndex(v){
+    return Math.floor(v + 6);
+  }
 
-		this.sand = mesh;
-		this.scene.add(mesh);
-	}
+  isSandAt(ix, iz){
+    if(ix < 0 || ix > 11 || iz < 0 || iz > 11) return false;
+    return this.sandSet.has(this._key(ix, iz));
+  }
 
-	_buildWater() {
-		const geom = new THREE.PlaneGeometry(1200, 1200, 1, 1);
-		this._waterTex.repeat.set(220, 220);
+  canStand(x, z, radius=0.3){
+    const s = [
+      [ x, z ],
+      [ x + radius, z ],
+      [ x - radius, z ],
+      [ x, z + radius ],
+      [ x, z - radius ],
+      [ x + radius*0.707, z + radius*0.707 ],
+      [ x - radius*0.707, z + radius*0.707 ],
+      [ x + radius*0.707, z - radius*0.707 ],
+      [ x - radius*0.707, z - radius*0.707 ]
+    ];
 
-		const mat = new THREE.MeshStandardMaterial({
-			map: this._waterTex,
-			roughness: 0.25,
-			metalness: 0.0,
-			transparent: true,
-			opacity: 0.62,
-			depthWrite: false,
-		});
+    for(const p of s){
+      const ix = this._tileIndex(p[0]);
+      const iz = this._tileIndex(p[1]);
+      if(!this.isSandAt(ix, iz)) return false;
+    }
+    return true;
+  }
 
-		const mesh = new THREE.Mesh(geom, mat);
-		mesh.rotation.x = -Math.PI / 2;
-		mesh.position.y = this.waterY;
-		mesh.frustumCulled = true;
-
-		this.water = mesh;
-		this.scene.add(mesh);
-	}
-
-	_buildFloor() {
-		const geom = new THREE.PlaneGeometry(1400, 1400, 1, 1);
-		const mat = new THREE.MeshLambertMaterial({
-			color: 0x1aa9c2,
-			transparent: true,
-			opacity: 0.9,
-		});
-
-		const mesh = new THREE.Mesh(geom, mat);
-		mesh.rotation.x = -Math.PI / 2;
-		mesh.position.y = this.floorY;
-		this.floor = mesh;
-		this.scene.add(mesh);
-	}
-
-	update(dt) {
-		this._t += dt;
-		if (this.water && this.water.material && this.water.material.map) {
-			const t = this.water.material.map;
-			t.offset.x = (this._t * 0.012) % 1;
-			t.offset.y = (this._t * 0.008) % 1;
-		}
-	}
-
-	_toTile(x, z) {
-		const ix = Math.floor(x + this.half);
-		const iz = Math.floor(z + this.half);
-		return [ix, iz];
-	}
-
-	isSandAt(x, z) {
-		const [ix, iz] = this._toTile(x, z);
-		if (ix < 0 || ix >= this.size || iz < 0 || iz >= this.size) return false;
-		return this.tiles.has(`${ix},${iz}`);
-	}
-
-	isAllowedXZ(x, z, r) {
-		// prevent entering water by ensuring the player's radius stays over sand
-		if (!this.isSandAt(x, z)) return false;
-		if (!this.isSandAt(x + r, z)) return false;
-		if (!this.isSandAt(x - r, z)) return false;
-		if (!this.isSandAt(x, z + r)) return false;
-		if (!this.isSandAt(x, z - r)) return false;
-		return true;
-	}
-
-	isWaterAt(x, z) {
-		return !this.isSandAt(x, z);
-	}
-
-	getRayTargets() {
-		return [this.sand, this.water];
-	}
+  raycastFirst(raycaster){
+    const list = [...this.sand, this.water];
+    const hits = raycaster.intersectObjects(list, false);
+    if(!hits || hits.length === 0) return null;
+    return hits[0];
+  }
 }

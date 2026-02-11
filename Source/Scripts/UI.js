@@ -1,171 +1,219 @@
 // fish/Source/Scripts/UI.js
-import { get } from './State.js';
-import { events } from './Events.js';
+import { loot } from './Loot.js';
 
-function el(tag, cls) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  return e;
+function lootById(){
+  const m = new Map();
+  for(const it of loot) m.set(it.id, it);
+  return m;
+}
+const lootMap = lootById();
+
+function makeSlot(section, i){
+  const d = document.createElement('div');
+  d.className = 'slot';
+  d.dataset.section = section;
+  d.dataset.i = String(i);
+  return d;
 }
 
-export default class UI {
-  constructor(inv, renderer, fishing) {
-    this.inv = inv;
-    this.renderer = renderer;
-    this.fishing = fishing;
+function slotContent(d, item){
+  d.innerHTML = '';
+  if(!item) return;
 
-    this.hint = document.getElementById('hint');
-    this.hotbar = document.getElementById('hotbar');
+  const info = lootMap.get(item.id);
+  if(!info) return;
+
+  const img = document.createElement('img');
+  img.src = info.sprite;
+  img.alt = info.name;
+  d.appendChild(img);
+
+  if(item.count > 1){
+    const c = document.createElement('div');
+    c.className = 'count';
+    c.textContent = String(item.count);
+    d.appendChild(c);
+  }
+}
+
+function cursorContent(d, item){
+  d.innerHTML = '';
+  if(!item){
+    d.classList.add('hidden');
+    return;
+  }
+  const info = lootMap.get(item.id);
+  if(!info){
+    d.classList.add('hidden');
+    return;
+  }
+  d.classList.remove('hidden');
+
+  const img = document.createElement('img');
+  img.src = info.sprite;
+  img.alt = info.name;
+  d.appendChild(img);
+
+  if(item.count > 1){
+    const c = document.createElement('div');
+    c.className = 'count';
+    c.textContent = String(item.count);
+    d.appendChild(c);
+  }
+}
+
+export class UI {
+  constructor(state, inv, player, canvas){
+    this.state = state;
+    this.inv = inv;
+    this.player = player;
+    this.canvas = canvas;
+
+    this.hotbarEl = document.getElementById('hotbar');
     this.invWrap = document.getElementById('inv');
-    this.grid = document.getElementById('grid');
-    this.bob = document.getElementById('bob');
+    this.invGrid = document.getElementById('invGrid');
+    this.cursorEl = document.getElementById('cursorItem');
+
+    this.open = false;
 
     this.hotSlots = [];
     this.invSlots = [];
 
-    this._buildHotbar();
-    this._buildInv();
+    this._build();
 
-    this._syncAll();
+    this._onKey = (e) => this._key(e);
+    this._onClick = (e) => this._click(e);
+    this._onMouse = (e) => this._mouse(e);
+    this._onCanvasDown = () => this._canvasDown();
 
-    events.on('inv', () => this._syncAll());
-    events.on('state:slot', () => this._syncHotSel());
-    events.on('state:invOpen', () => this._syncInvOpen());
+    window.addEventListener('keydown', this._onKey);
+    document.addEventListener('click', this._onClick);
+    document.addEventListener('mousemove', this._onMouse, { passive:true });
+    this.canvas.addEventListener('pointerdown', this._onCanvasDown);
 
-    this._syncInvOpen();
-    this._syncHint();
+    this.state.on('inv', () => this.render());
+    this.state.on('selected', () => this.render());
+    this.state.on('cursor', () => this.renderCursor());
+    this.state.on('catch', () => this.render());
+
+    this.render();
+    this.renderCursor();
+
+    this._setCursorMode(false);
   }
 
-  _buildHotbar() {
-    this.hotbar.innerHTML = '';
-    this.hotSlots.length = 0;
+  _build(){
+    for(let i=0;i<9;i++){
+      const s = makeSlot('hotbar', i);
+      this.hotbarEl.appendChild(s);
+      this.hotSlots.push(s);
+    }
 
-    for (let i = 0; i < 9; i++) {
-      const s = el('div', 'slot');
-      const img = el('img');
-      img.draggable = false;
-      const cnt = el('div', 'cnt');
-
-      s.appendChild(img);
-      s.appendChild(cnt);
-
-      this.hotbar.appendChild(s);
-      this.hotSlots.push({ s, img, cnt });
+    for(let i=0;i<36;i++){
+      const s = makeSlot('inv', i);
+      this.invGrid.appendChild(s);
+      this.invSlots.push(s);
     }
   }
 
-  _buildInv() {
-    this.grid.innerHTML = '';
-    this.invSlots.length = 0;
-
-    for (let i = 0; i < 36; i++) {
-      const s = el('div', 'slot');
-      const img = el('img');
-      img.draggable = false;
-      const cnt = el('div', 'cnt');
-
-      s.appendChild(img);
-      s.appendChild(cnt);
-
-      s.addEventListener('click', () => {
-        if (!get('invOpen')) return;
-        this.inv.moveBetween('inv', i);
-      });
-
-      this.grid.appendChild(s);
-      this.invSlots.push({ s, img, cnt });
-    }
-
-    // enable clicking hotbar only when inventory open
-    for (let i = 0; i < 9; i++) {
-      this.hotSlots[i].s.addEventListener('click', () => {
-        if (!get('invOpen')) return;
-        this.inv.moveBetween('hot', i);
-      });
+  _setCursorMode(open){
+    if(open){
+      document.body.style.cursor = 'default';
+      this.invWrap.classList.remove('hidden');
+      this.player.setEnabled(false);
+      this.player.setLook(false);
+      this.player.unlock();
+    }else{
+      document.body.style.cursor = 'none';
+      this.invWrap.classList.add('hidden');
+      this.player.setEnabled(true);
+      this.player.setLook(true);
+      this.player.requestLock();
     }
   }
 
-  _syncAll() {
-    this._syncHot();
-    this._syncInv();
-    this._syncHotSel();
+  toggle(){
+    this.open = !this.open;
+
+    if(!this.open){
+      this.inv.stashCursor();
+      this.state.save(); // inventory close autosave
+    }
+
+    this._setCursorMode(this.open);
+    this.render();
+    this.renderCursor();
   }
 
-  _syncSlot(ui, item) {
-    if (!item) {
-      ui.img.style.display = 'none';
-      ui.img.src = '';
-      ui.cnt.textContent = '';
+  _key(e){
+    if(e.code === 'KeyE'){
+      e.preventDefault();
+      this.toggle();
       return;
     }
 
-    const d = this.inv.getDef(item.id);
-    if (!d) {
-      ui.img.style.display = 'none';
-      ui.img.src = '';
-      ui.cnt.textContent = '';
+    if(e.code.startsWith('Digit')){
+      const n = (e.code === 'Digit0') ? 10 : (e.code.charCodeAt(5) - 48);
+      if(n >= 1 && n <= 9){
+        this.state.setSelected(n - 1);
+      }
       return;
     }
-
-    ui.img.style.display = 'block';
-    ui.img.src = d.sprite;
-    ui.cnt.textContent = item.n > 1 ? String(item.n) : '';
   }
 
-  _syncHot() {
-    for (let i = 0; i < 9; i++) {
-      this._syncSlot(this.hotSlots[i], this.inv.hot[i]);
+  _findSlotEl(el){
+    if(!el) return null;
+    const s = el.closest?.('.slot');
+    if(!s) return null;
+    const section = s.dataset.section;
+    const i = parseInt(s.dataset.i || '0', 10);
+    if(section !== 'hotbar' && section !== 'inv') return null;
+    return { section, i };
+  }
+
+  _click(e){
+    const hit = this._findSlotEl(e.target);
+    if(!hit) return;
+
+    if(!this.open && hit.section !== 'hotbar') return;
+
+    this.inv.click(hit.section, hit.i);
+    this.render();
+    this.renderCursor();
+  }
+
+  _mouse(e){
+    if(!this.open) return;
+    this.cursorEl.style.left = `${e.clientX}px`;
+    this.cursorEl.style.top = `${e.clientY}px`;
+  }
+
+  _canvasDown(){
+    if(this.open) return;
+    this.player.requestLock();
+  }
+
+  render(){
+    const d = this.state.data;
+    for(let i=0;i<9;i++){
+      const el = this.hotSlots[i];
+      el.classList.toggle('sel', d.selected === i);
+      slotContent(el, d.hotbar[i]);
+    }
+    for(let i=0;i<36;i++){
+      const el = this.invSlots[i];
+      slotContent(el, d.inventory[i]);
     }
   }
 
-  _syncInv() {
-    for (let i = 0; i < 36; i++) {
-      this._syncSlot(this.invSlots[i], this.inv.inv[i]);
-    }
+  renderCursor(){
+    cursorContent(this.cursorEl, this.inv.cursor);
   }
 
-  _syncHotSel() {
-    const sel = get('slot');
-    for (let i = 0; i < 9; i++) {
-      if (i === sel) this.hotSlots[i].s.classList.add('sel');
-      else this.hotSlots[i].s.classList.remove('sel');
-    }
-  }
-
-  _syncInvOpen() {
-    const open = get('invOpen');
-    this.invWrap.classList.toggle('hide', !open);
-    this.hotbar.style.pointerEvents = open ? 'auto' : 'none';
-    this._syncHint();
-  }
-
-  _syncHint() {
-    const open = get('invOpen');
-    const locked = get('pointerLocked');
-    const show = !open && !locked;
-    this.hint.style.display = show ? 'block' : 'none';
-  }
-
-  update() {
-    this._syncHint();
-
-    const hud = this.fishing.getHud();
-    if (!hud || !hud.show) {
-      this.bob.classList.add('hide');
-      return;
-    }
-
-    const cam = this.renderer.camera;
-    const r = this.renderer.r;
-    const v = hud.pos.clone().project(cam);
-
-    const x = (v.x * 0.5 + 0.5) * r.domElement.clientWidth;
-    const y = (-v.y * 0.5 + 0.5) * r.domElement.clientHeight;
-
-    this.bob.classList.remove('hide');
-    this.bob.textContent = hud.text;
-    this.bob.style.color = hud.color;
-    this.bob.style.left = `${x}px`;
-    this.bob.style.top = `${y}px`;
+  dispose(){
+    window.removeEventListener('keydown', this._onKey);
+    document.removeEventListener('click', this._onClick);
+    document.removeEventListener('mousemove', this._onMouse);
+    this.canvas.removeEventListener('pointerdown', this._onCanvasDown);
   }
 }

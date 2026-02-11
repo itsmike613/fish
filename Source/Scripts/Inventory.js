@@ -1,134 +1,154 @@
 // fish/Source/Scripts/Inventory.js
 import { loot } from './Loot.js';
-import { events } from './Events.js';
 
-export default class Inventory {
-  constructor() {
-    this.hot = new Array(9).fill(null);
-    this.inv = new Array(36).fill(null);
+function byId(){
+  const m = new Map();
+  for(const it of loot) m.set(it.id, it);
+  return m;
+}
 
-    this.def = new Map();
-    this.def.set('fishingrod', {
-      id: 'fishingrod',
-      name: 'Fishing Rod',
-      sprite: './Source/Assets/Tools/fishingrod.png',
-      stackable: 1,
-    });
+const lootById = byId();
 
-    for (const it of loot) {
-      this.def.set(it.id, {
-        id: it.id,
-        name: it.name,
-        sprite: it.sprite,
-        stackable: it.stackable,
-      });
+function maxStack(id){
+  const it = lootById.get(id);
+  return it ? (it.stackable|0) : 1;
+}
+
+function normSlot(s){
+  if(!s) return null;
+  if(typeof s !== 'object') return null;
+  if(typeof s.id !== 'string') return null;
+  const c = s.count|0;
+  if(c <= 0) return null;
+  return { id: s.id, count: c };
+}
+
+function canStack(id){
+  return maxStack(id) > 1;
+}
+
+export class Inventory {
+  constructor(state){
+    this.state = state;
+    this.cursor = null;
+  }
+
+  get hotbar(){ return this.state.data.hotbar; }
+  get inv(){ return this.state.data.inventory; }
+
+  _emitChanged(){
+    this.state.emit('inv', null);
+  }
+
+  _save(){
+    this.state.save();
+  }
+
+  slot(section, i){
+    const a = (section === 'hotbar') ? this.hotbar : this.inv;
+    return a[i] ?? null;
+  }
+
+  setSlot(section, i, v){
+    const a = (section === 'hotbar') ? this.hotbar : this.inv;
+    a[i] = normSlot(v);
+  }
+
+  click(section, i){
+    const s = normSlot(this.slot(section, i));
+    const c = normSlot(this.cursor);
+
+    if(!c && s){
+      this.cursor = s;
+      this.setSlot(section, i, null);
+      this._emitChanged();
+      this.state.emit('cursor', this.cursor);
+      this._save();
+      return;
+    }
+
+    if(c && !s){
+      this.setSlot(section, i, c);
+      this.cursor = null;
+      this._emitChanged();
+      this.state.emit('cursor', this.cursor);
+      this._save();
+      return;
+    }
+
+    if(c && s){
+      if(c.id === s.id && canStack(c.id)){
+        const m = maxStack(c.id);
+        const space = m - s.count;
+        if(space > 0){
+          const add = Math.min(space, c.count);
+          s.count += add;
+          c.count -= add;
+          this.setSlot(section, i, s);
+          this.cursor = c.count > 0 ? c : null;
+          this._emitChanged();
+          this.state.emit('cursor', this.cursor);
+          this._save();
+          return;
+        }
+      }
+
+      this.setSlot(section, i, c);
+      this.cursor = s;
+      this._emitChanged();
+      this.state.emit('cursor', this.cursor);
+      this._save();
     }
   }
 
-  getDef(id) {
-    return this.def.get(id) || null;
+  add(id, count){
+    count = count|0;
+    if(count <= 0) return 0;
+    const m = maxStack(id);
+
+    const fill = (arr) => {
+      if(m <= 1) return;
+      for(let i=0;i<arr.length;i++){
+        const s = normSlot(arr[i]);
+        if(!s) continue;
+        if(s.id !== id) continue;
+        if(s.count >= m) continue;
+        const space = m - s.count;
+        const add = Math.min(space, count);
+        s.count += add;
+        count -= add;
+        arr[i] = s;
+        if(count <= 0) return;
+      }
+    };
+
+    const place = (arr) => {
+      for(let i=0;i<arr.length;i++){
+        const s = normSlot(arr[i]);
+        if(s) continue;
+        const add = Math.min(m, count);
+        arr[i] = { id, count: add };
+        count -= add;
+        if(count <= 0) return;
+      }
+    };
+
+    fill(this.hotbar);
+    fill(this.inv);
+    place(this.hotbar);
+    place(this.inv);
+
+    this._emitChanged();
+    this._save();
+    return count; // leftover
   }
 
-  _maxStack(id) {
-    const d = this.getDef(id);
-    return d ? (d.stackable | 0) : 1;
-  }
-
-  _arr(section) {
-    return section === 'hot' ? this.hot : this.inv;
-  }
-
-  get(section, i) {
-    const a = this._arr(section);
-    return a[i] || null;
-  }
-
-  set(section, i, item) {
-    const a = this._arr(section);
-    a[i] = item;
-    events.emit('inv', null);
-  }
-
-  clear(section, i) {
-    const a = this._arr(section);
-    a[i] = null;
-    events.emit('inv', null);
-  }
-
-  spawnStart() {
-    this.hot[0] = { id: 'fishingrod', n: 1 };
-    events.emit('inv', null);
-  }
-
-  _mergeInto(a, item) {
-    if (!item || item.n <= 0) return 0;
-    const max = this._maxStack(item.id);
-    let left = item.n;
-
-    for (let i = 0; i < a.length; i++) {
-      const s = a[i];
-      if (!s) continue;
-      if (s.id !== item.id) continue;
-      if (s.n >= max) continue;
-
-      const can = Math.min(max - s.n, left);
-      s.n += can;
-      left -= can;
-      if (left <= 0) return 0;
-    }
-
-    return left;
-  }
-
-  _placeInto(a, item) {
-    if (!item || item.n <= 0) return 0;
-    const max = this._maxStack(item.id);
-    let left = item.n;
-
-    for (let i = 0; i < a.length; i++) {
-      if (a[i]) continue;
-      const put = Math.min(max, left);
-      a[i] = { id: item.id, n: put };
-      left -= put;
-      if (left <= 0) return 0;
-    }
-
-    return left;
-  }
-
-  addItem(id, n) {
-    const item = { id, n: n | 0 };
-    if (item.n <= 0) return false;
-
-    let left = item.n;
-    left = this._mergeInto(this.hot, { id, n: left });
-    left = this._mergeInto(this.inv, { id, n: left });
-
-    left = this._placeInto(this.hot, { id, n: left });
-    left = this._placeInto(this.inv, { id, n: left });
-
-    events.emit('inv', null);
-    return left === 0;
-  }
-
-  moveBetween(section, i) {
-    const from = section === 'hot' ? this.hot : this.inv;
-    const to = section === 'hot' ? this.inv : this.hot;
-
-    const it = from[i];
-    if (!it) return;
-
-    const leftAfterMerge = this._mergeInto(to, { id: it.id, n: it.n });
-    const leftAfterPlace = this._placeInto(to, { id: it.id, n: leftAfterMerge });
-
-    if (leftAfterPlace === it.n) return; // nothing moved
-
-    if (leftAfterPlace <= 0) {
-      from[i] = null;
-    } else {
-      from[i].n = leftAfterPlace;
-    }
-
-    events.emit('inv', null);
+  stashCursor(){
+    const c = normSlot(this.cursor);
+    if(!c) return;
+    const left = this.add(c.id, c.count);
+    this.cursor = left > 0 ? { id: c.id, count: left } : null;
+    this.state.emit('cursor', this.cursor);
+    this._save();
   }
 }

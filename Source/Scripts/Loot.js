@@ -1,31 +1,32 @@
 // fish/Source/Scripts/Loot.js
+// fish/Source/Scripts/Loot.js
 export const loot = [
-	{
-		name: "Salmon",
-		description: "Tastes like $15 and the crushing realization that 'fresh caught' is just a marketing term for 'sat in a bucket of lukewarm seawater for six hours.'",
-		id: "salmon",
-		sprite: "./Source/Assets/Catches/salmon.png",
-		category: "fish",
-		rarity: "common",
-		catchable: Infinity,
-		sellable: true,
-		stackable: 256,
-		weight: 10,
-		price: 15
-	},
-	{
-		name: "Research Log #1",
-		description: "Entry 1: 'The island is 30% smaller than yesterday. I've stopped leaving my shoes near the shoreline.'",
-		id: "researchlog1",
-		sprite: "./Source/Assets/Catches/salmon.png",
-		category: "lore",
-		rarity: "common",
-		sellable: false,
-		catchable: 1,
-		stackable: 1,
-		weight: 0.01,
-		price: 0
-	}
+  {
+    name: "Salmon",
+    description: "Tastes like $15 and the crushing realization that 'fresh caught' is just a marketing term for 'sat in a bucket of lukewarm seawater for six hours.'",
+    id: "salmon",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "fish",
+    rarity: "common",
+    catchable: Infinity,
+    sellable: true,
+    stackable: 256,
+    weight: 10,
+    price: 15
+  },
+  {
+    name: "Research Log #1",
+    description: "Entry 1: 'The island is 30% smaller than yesterday. I've stopped leaving my shoes near the shoreline.'",
+    id: "researchlog1",
+    sprite: "./Source/Assets/Catches/salmon.png",
+    category: "lore",
+    rarity: "uncommon",
+    sellable: false,
+    catchable: 1,
+    stackable: 1,
+    weight: 0.01,
+    price: 0
+  }
 ];
 
 

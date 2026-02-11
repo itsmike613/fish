@@ -4,7 +4,7 @@
 
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
 	<title>fish</title>
 
 	<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,23 +15,20 @@
 </head>
 
 <body>
-	<div id="ui">
-		<div id="hint">Click to play</div>
-		<div id="crosshair">
-			<div class="h"></div>
-			<div class="v"></div>
-		</div>
+	<div id="app">
+		<canvas id="c"></canvas>
 
-		<div id="hotbar"></div>
+		<div id="ui">
+			<div id="hotbar"></div>
 
-		<div id="inv" class="hide">
-			<div class="panel">
-				<div class="title">Inventory</div>
-				<div id="grid"></div>
+			<div id="inv" class="hidden">
+				<div id="invPanel">
+					<div id="invTitle">Inventory</div>
+					<div id="invGrid"></div>
+				</div>
+				<div id="cursorItem" class="hidden"></div>
 			</div>
 		</div>
-
-		<div id="bob" class="hide"></div>
 	</div>
 
 	<script type="module" src="./Source/Scripts/main.js"></script>
