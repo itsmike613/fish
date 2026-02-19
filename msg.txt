@@ -1,0 +1,33 @@
+Create a fishing game UI (not the game, just the UI) using HTML, CSS, JS, Three.JS.
+Make it so it works on mobile, desktop, and all other device types.
+
+Background:
+The background of the entire website should be water using water.png for infinity, as far as the player can see, using Three.JS.
+Make the water slightly transparent, and "moving" sliding animation to make it feel more immersive.
+Add flying seagulls (white with flapping wings) flying around a couple (2-3) occasionally.
+
+Main Page Content:
+Create a card with a button on it that says "Fish", on the bottom of the button add a progress bar, by default it is empty.
+When I make the game functional, I want the Fish button to become disabled after pressing it, change the button text to "Reel In", and make the progress bar last 2-6 seconds.
+After that time is up, the player needs to press "Reel In" within 2 seconds. or they lose the fish and the button goes back to "Fish" state. (This adds difficulty, by giving only two seconds to reel in the fish)
+
+Inventory Page:
+Pressing (E) on computer or pressing the (Inventory) button on computer/mobile, hides all the content on the page (fishing card, etc.)
+It opens the inventory modal, 5 rows of 9 slots. Just like the Minecraft inventory, shift click to quick move, click to pickup/move, etc.
+Pressing (E) again or pressing the button below the inventory modal closes the inventory modal and goes back to the home page (fishing)
+
+Toast Structure:
+"[icon] _message_"
+
+Toasts:
+Catching an item from Reel In button will show a toast that has the item they caught on the left (icon), then the message "You caught xN [itemname]!"
+Failing to catch within two seconds will make the toast icon "fishingcatcherror.png" with the message "The fish escaped!"
+
+File Structure:
+fish/Source/Assets/Terrain/water.png
+fish/Source/Assets/Catches/Fish/salmon.png
+fish/Source/Assets/Catches/Junk/boot.png
+fish/Source/Assets/Catches/Treasure/crown.png
+fish/Source/Scripts/index.js
+fish/Source/Styles/index.css
+fish/index.html
