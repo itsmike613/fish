@@ -63,7 +63,8 @@ Add flying seagulls (white with flapping wings) flying around, (2-3) occasionall
 
 Main Page Content:
 Create a card with a button on it that says "Fish", on the bottom of the button add a progress bar, by default it is empty.
-I want the Fish button to become disabled after pressing it, change the button text to "Reel In", and make the progress bar last 2-6 seconds.
+Once the Fish button is clicked, Change the button text to "Reel In", and make the progress bar last 2-6 seconds.
+Pressing the Reel In button too early will show a too early error toast
 After that time is up, the player needs to press "Reel In" within 2 seconds. or they lose the fish and the button goes back to "Fish" state. (This adds difficulty, by giving only two seconds to reel in the fish)
 
 Inventory Page:
@@ -77,30 +78,38 @@ Toast Structure:
 
 Toasts:
 Catching an item from Reel In button will show a toast that has the item they caught on the left (icon), then the message "You caught xN [itemname]!"
-Failing to catch within two seconds will make the toast icon "fish/Source/Assets/Icons/error.png" with the message "The fish escaped!"
+Failing to catch within two seconds will make the toast icon "./Source/Assets/Icons/error.png" with the message "The fish escaped!"
+Reelining in too early will make the toast icon "./Source/Assets/Icons/error.png" with the message "Too quick!"
 
-The 24-Minute Logic:
+The 24-Minute Logic (In game time system):
 1 Real Minute = 1 In-game Hour
 1 Real Second = 2.5 In-game Minutes
 11:00 PM = Exactly 23 minutes into the loop.
 Have the Three.JS background visually transition through the four stages of a day: a dark, star-filled Night, a vibrant glowing Sunrise, a bright clear Daytime, and a deep atmospheric Sunset. The lighting and sky color must stay perfectly synced with the 24-minute clock so the environment matches the "Time Catchable" stats of the fish.
 
 Lore System:
-Track a single total variable in Local Storage. When "total" matches a "ctch" number in the lore table, the player catches that specific lore item instead of regular loot. Items must be caught in the table's linear order.
+Calculate the total number of fish caught on demand by summing all values in the "catches" object stored in Local Storage (C + U + R + E + L).
+When this calculated total matches a "ctch" number in the lore table, the player catches that specific lore item instead of regular loot. Items must be caught in the table's linear order.
+
 Lore System UI & Interaction:
 Toasts/Inventory Item Icons: Use the icon from Catches/Lore/....
 Right-Clicking on a lore item in the inventory: Hide all menus and display the image from Catches/Files/... corresponding to the lore item right clicked, in the center of the screen.
 Exit: Pressing ESC, E, or clicking anywhere closes the image and re-opens the inventory.
 The player catches 1 lore item every time the "total" variable reaches a milestone defined in the lore table's ctch property.
 
+Fishing System:
+On successful Reel Ins add +1 to local storage for whatever type of item they caught (category + rarity)
+Filter loot by "time catchable" for current in-game hour and "rarity" for chances of getting that item.
+
 Local Storage Variables:
+Store everything a user catches, the category and rarity:
 {
-  "total": 0,
   "lore": 0,
   "fish": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
   "junk": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
   "treasure": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 }
 }
+Calculate total by summing all counts across fish, junk, and treasure rarity buckets in Local Storage.
 
 File Structure:
 fish/Source/Assets/Icons/error.png
@@ -118,7 +127,7 @@ fish/Source/Styles/index.css
 fish/index.html
 
 Loot & Lore Data Structure:
-export const loot = [
+const loot = [
 	{
 		name: "Salmon", // Name
 		desc: "Smells Fishy", // Description
@@ -146,7 +155,7 @@ export const loot = [
 		wght: 1.5,
         xpmi: 2,
         xpma: 4,
-		price: 2,
+		slsp: 2,
         time: [[0, 24]] // Catchable from midnight to midnight
 	},
     {
@@ -161,12 +170,12 @@ export const loot = [
 		wght: 2.8,
         xpmi: 7,
         xpma: 9,
-		price: 1000,
+		slsp: 1000,
         time: [[0, 24]]
 	}
 ];
 
-export const lore = [
+const lore = [
 	{
 		name: "Research Log #1",
 		desc: "Entry 1",
