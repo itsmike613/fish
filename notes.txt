@@ -17,6 +17,7 @@ It opens the backpack modal, 5 rows of 9 slots. Just like the Minecraft inventor
 Pressing (E) again closes the backpack modal and goes back to the home page (fishing)
 Hovering over an item (with mouse) will display a modal under the backpack menu, this modal should have info on the current item being hovered, such as the name, description, price, and everything else.
 The backpack modal should stay the same size always, the hover item info creates the info modal below the backpack modal and should not shift the backpack modal up or any direction.
+The slots should be squares, yyou can make them the same size as in Minecrafts Inventory.
 
 Toast Structure:
 "[icon] _message_"
@@ -47,11 +48,12 @@ On successful Reel Ins add +1 to local storage for whatever type of item they ca
 Filter loot by "time catchable" for current in-game hour and "rarity" for chances of getting that item.
 
 Code Names/ID's/Classes/etc.:
-Do not make any names of any code long. Keep them short, one word or abbreviated. Such as instead of "fishingCard" it would just be "fishing".
+Do not make any names of any code long. Keep them short, one word max. Such as instead of "fishingCard" it would just be "fishing".
 
 UI Design:
 Keep it minimilistic, modern, no excessive padding.
-Use the font:
+Make sure everything fits on screen, especially when you have the backpack open and have the item info modal open at the same time.
+Use the font for everything:
 Jersey 10 by Google Fonts
 
 Local Storage Variables:
