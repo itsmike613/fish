@@ -94,15 +94,13 @@ Exit: Pressing ESC, E, or clicking anywhere closes the image and re-opens the in
 The player catches 1 lore item every time the "total" variable reaches a milestone defined in the lore table's ctch property.
 
 Local Storage Variables:
-"total" = The total amount of fish/junk/treasure/lore items caught
-"fishC" = Total Common fish caught
-"fishU" = Total Uncommon fish caught
-"fishR" = Total Rare fish caught
-"fishE" = Total Epic fish caught
-"fishL" = Total Legendary fish caught
-"junkC" = Total Common junk caught
-"junkU" = Total Uncommon junk caught
-"junkR" = Total Rare junk caught
+{
+  "total": 0,
+  "lore": 0,
+  "fish": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
+  "junk": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
+  "treasure": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 }
+}
 
 File Structure:
 fish/Source/Assets/Icons/error.png
