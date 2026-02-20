@@ -14,41 +14,45 @@
 </head>
 
 <body>
-	<div id="bg"></div>
+	<canvas id="bg"></canvas>
 
 	<div id="ui">
 		<div id="fish" class="card">
-			<button id="btn" class="btn">Fish</button>
-			<div id="bar">
-				<div id="fill"></div>
+			<div class="row">
+				<button id="btn" class="btn">Fish</button>
 			</div>
-			<div id="hint">Press <b>E</b> for Backpack</div>
+			<div class="pb">
+				<div id="bar" class="bar"></div>
+			</div>
+			<div id="clk" class="clk"></div>
 		</div>
 	</div>
 
-	<div id="bag" aria-hidden="true">
-		<div id="ttl">Backpack</div>
-		<div id="grd"></div>
+	<div id="bag" class="mod hid" aria-hidden="true">
+		<div class="box">
+			<div class="hd">
+				<div class="ttl">Backpack</div>
+				<div class="sub">E to close</div>
+			</div>
+
+			<div id="grid" class="grid"></div>
+		</div>
+
+		<div id="info" class="info hid"></div>
 	</div>
 
-	<div id="inf" aria-hidden="true">
-		<div id="in0">Hover an item</div>
-		<div id="in1"></div>
+	<div id="view" class="view hid" aria-hidden="true">
+		<img id="vimg" alt="lore" />
 	</div>
 
-	<div id="view" aria-hidden="true">
-		<img id="pic" alt="lore" />
+	<div id="hand" class="hand hid" aria-hidden="true">
+		<img id="himg" alt="" />
+		<div id="hcnt" class="hcnt"></div>
 	</div>
 
-	<div id="cur" aria-hidden="true">
-		<img id="curi" alt="" />
-		<div id="curn"></div>
-	</div>
+	<div id="ts" class="ts"></div>
 
-	<div id="ts"></div>
-
-	<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-	<script src="./Source/Scripts/index.js" defer></script>
+	<script type="module" src="./Source/Scripts/index.js"></script>
 </body>
 
 </html>

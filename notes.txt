@@ -48,7 +48,7 @@ On successful Reel Ins add +1 to local storage for whatever type of item they ca
 Filter loot by "time catchable" for current in-game hour and "rarity" for chances of getting that item.
 
 Code Names/ID's/Classes/etc.:
-Do not make any names of any code long. Keep them short, one word max. Such as instead of "fishingCard" it would just be "fishing".
+Do not make any names long. Keep them short. Such as instead of "fishingCard" it would just be "fishing".
 
 UI Design:
 Keep it minimilistic, modern, no excessive padding.
