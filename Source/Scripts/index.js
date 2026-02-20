@@ -1,832 +1,759 @@
-// ----- Loot & Lore -----
+// ---------- data ----------
 const loot = [
     {
-        name: "Salmon",
-        desc: "Smells Fishy",
-        iden: "salmon",
+        name: "Salmon", desc: "Smells Fishy", iden: "salmon",
         icon: "./Source/Assets/Catches/Fish/salmon.png",
-        ctgy: "fish",
-        rrty: "uncommon",
-        sell: true,
-        slsp: 15,
-        stak: 256,
-        wght: 10,
-        xpmi: 5,
-        xpma: 8,
+        ctgy: "fish", rrty: "uncommon", sell: true, slsp: 15, stak: 256, wght: 10, xpmi: 5, xpma: 8,
         time: [[5, 8], [16.5, 21.25]]
     },
     {
-        name: "Old Boot",
-        desc: "Stinky Shoe",
-        iden: "oldboot",
+        name: "Old Boot", desc: "Stinky Shoe", iden: "oldboot",
         icon: "./Source/Assets/Catches/Junk/oldboot.png",
-        ctgy: "junk",
-        rrty: "common",
-        sell: true,
-        stak: 256,
-        wght: 1.5,
-        xpmi: 2,
-        xpma: 4,
-        slsp: 2,
+        ctgy: "junk", rrty: "common", sell: true, stak: 256, wght: 1.5, xpmi: 2, xpma: 4, slsp: 2,
         time: [[0, 24]]
     },
     {
-        name: "Crown",
-        desc: "Very Shiny",
-        iden: "crown",
+        name: "Crown", desc: "Very Shiny", iden: "crown",
         icon: "./Source/Assets/Catches/Treasure/crown.png",
-        ctgy: "treasure",
-        rrty: "rare",
-        sell: true,
-        stak: 256,
-        wght: 2.8,
-        xpmi: 7,
-        xpma: 9,
-        slsp: 1000,
+        ctgy: "treasure", rrty: "rare", sell: true, stak: 256, wght: 2.8, xpmi: 7, xpma: 9, slsp: 1000,
         time: [[0, 24]]
     }
 ];
 
 const lore = [
     {
-        name: "Research Log #1",
-        desc: "Entry 1",
+        name: "Research Log #1", desc: "Entry 1",
         icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog1.png",
         ctch: 5
     },
     {
-        name: "Soggy Travel Brochure",
-        desc: "Water-damaged pamphlet",
+        name: "Soggy Travel Brochure", desc: "Water-damaged pamphlet",
         icon: "./Source/Assets/Catches/Lore/travelbrochure.png",
         file: "./Source/Assets/Catches/Files/travelbrochure.png",
         ctch: 17
     },
     {
-        name: "Research Log #2",
-        desc: "Entry 2",
+        name: "Research Log #2", desc: "Entry 2",
         icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog2.png",
         ctch: 32
     }
 ];
 
-// ----- DOM -----
+// ---------- ui refs ----------
+const bg = $("#bg");
 const ui = $("#ui");
+const fish = $("#fish");
 const btn = $("#btn");
+const bar = $("#bar");
 const fill = $("#fill");
+const ts = $("#ts");
+
 const bag = $("#bag");
-const inv = $("#inv");
+const grd = $("#grd");
 const inf = $("#inf");
-const tos = $("#tos");
-const cur = $("#cur");
-const curi = $("#curi");
-const curq = $("#curq");
+const in0 = $("#in0");
+const in1 = $("#in1");
+
 const view = $("#view");
 const pic = $("#pic");
 
-function $(q) { return document.querySelector(q); }
-function on(a, b, c) { a.addEventListener(b, c); }
-function cls(el, c, v) { el.classList.toggle(c, !!v); }
+const cur = $("#cur");
+const curi = $("#curi");
+const curn = $("#curn");
 
-// ----- Local storage -----
-const key = "catches";
-const ikey = "inv";
+// ---------- state ----------
+let st = 0;      // 0 idle, 1 wait, 2 win
+let t0 = 0;      // wait end
+let ti = 0;      // wait timer
+let tw = 0;      // win timer
 
-const base = {
-    lore: 0,
-    fish: { C: 0, U: 0, R: 0, E: 0, L: 0 },
-    junk: { C: 0, U: 0, R: 0, E: 0, L: 0 },
-    treasure: { C: 0, U: 0, R: 0, E: 0, L: 0 }
-};
+let mode = 0;    // 0 home, 1 bag, 2 view
+let hov = -1;
 
-function load(k, def) {
-    try {
-        const v = JSON.parse(localStorage.getItem(k));
-        return v ?? def;
-    } catch (_) { return def; }
+const err = "./Source/Assets/Icons/error.png";
+
+// inv: 45 slots, split like MC: top 27, bot 18
+let inv = [];
+let hand = null; // {id,n}
+
+// ---------- storage ----------
+const keyc = "ct";
+const keyi = "inv";
+
+initc();
+initi();
+draw();
+
+// ---------- fish logic ----------
+btn.addEventListener("click", () => {
+    if (mode !== 0) return;
+
+    if (st === 0) cast();
+    else if (st === 1) { toast(err, "Too quick!"); reset(); }
+    else if (st === 2) reel();
+});
+
+function cast() {
+    st = 1;
+    btn.textContent = "Reel In";
+    const dur = (2 + Math.random() * 4) * 1000;
+    t0 = performance.now() + dur;
+
+    fill.style.transition = "width 0ms linear";
+    fill.style.width = "0%";
+    void fill.offsetWidth;
+    fill.style.transition = `width ${dur}ms linear`;
+    fill.style.width = "100%";
+
+    clearTimeout(ti);
+    ti = setTimeout(() => {
+        st = 2;
+        // 2s window
+        clearTimeout(tw);
+        tw = setTimeout(() => {
+            toast(err, "The fish escaped!");
+            reset();
+        }, 2000);
+    }, dur);
 }
-function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 
-let dat = load(key, base);
-let bagon = false;
-let vwon = false;
-
-// Inventory: 45 slots: {id, q} or null
-let slot = load(ikey, Array(45).fill(null));
-if (!Array.isArray(slot) || slot.length !== 45) slot = Array(45).fill(null);
-
-// Cursor item: {id, q} or null
-let hand = null;
-
-// ----- Time (24-min loop) -----
-const day = 24 * 60 * 1000; // 24 real minutes
-function hr() {
-    const t = Date.now() % day;
-    return t / 60000; // 1 real minute = 1 in-game hour
+function reel() {
+    clearTimeout(tw);
+    const got = get();
+    add(got.id, 1);
+    toast(got.icon, `You caught x1 ${got.name}!`);
+    reset();
 }
 
-// ----- Helpers -----
-const rwt = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
+function reset() {
+    st = 0;
+    btn.textContent = "Fish";
+    fill.style.transition = "width 120ms linear";
+    fill.style.width = "0%";
+    clearTimeout(ti);
+    clearTimeout(tw);
+}
+
+// ---------- loot + lore ----------
 const rmap = { common: "C", uncommon: "U", rare: "R", epic: "E", legendary: "L" };
+const rw = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
 
-function sum() {
-    let s = 0;
-    for (const k of ["fish", "junk", "treasure"]) {
-        for (const r of ["C", "U", "R", "E", "L"]) s += (dat[k]?.[r] || 0);
-    }
-    return s;
-}
+const lib = build();
 
-function hit(h, a) {
-    for (const p of a) {
-        const s = p[0], e = p[1];
-        if (s <= e) {
-            if (h >= s && h < e) return true;
-        } else {
-            // wrap-around
-            if (h >= s || h < e) return true;
-        }
-    }
-    return false;
-}
-
-function pick(arr) {
-    let w = 0;
-    for (const it of arr) w += it.w;
-    let x = Math.random() * w;
-    for (const it of arr) {
-        x -= it.w;
-        if (x <= 0) return it.v;
-    }
-    return arr[arr.length - 1].v;
-}
-
-function meta(id) {
-    if (!id) return null;
-    if (id[0] === "l") {
-        const i = parseInt(id.slice(1), 10);
-        const it = lore[i];
-        if (!it) return null;
-        return {
-            name: it.name,
-            desc: it.desc,
-            icon: it.icon,
-            file: it.file,
+function build() {
+    const m = {};
+    for (const a of loot) m[a.iden] = a;
+    for (let i = 0; i < lore.length; i++) {
+        m["l" + i] = {
+            name: lore[i].name,
+            desc: lore[i].desc,
+            iden: "l" + i,
+            icon: lore[i].icon,
+            file: lore[i].file,
             ctgy: "lore",
             rrty: "lore",
             sell: false,
             slsp: 0,
             stak: 1,
-            wght: 0,
-            xpmi: 0,
-            xpma: 0
+            wght: 0
         };
     }
-    const it = loot.find(x => x.iden === id);
-    return it || null;
+    return m;
 }
 
-function add(id, q) {
-    const m = meta(id);
-    if (!m) return;
-    const max = m.stak || 1;
+function get() {
+    const c = loadc();
+    const tot = totc(c);
+    const li = c.lore || 0;
 
-    // stack into existing
-    for (let i = 0; i < slot.length && q > 0; i++) {
-        const s = slot[i];
-        if (!s || s.id !== id) continue;
-        const can = Math.max(0, max - s.q);
-        if (can <= 0) continue;
-        const put = Math.min(can, q);
-        s.q += put;
-        q -= put;
-    }
-    // fill empties
-    for (let i = 0; i < slot.length && q > 0; i++) {
-        if (slot[i]) continue;
-        const put = Math.min(max, q);
-        slot[i] = { id, q: put };
-        q -= put;
-    }
-    save(ikey, slot);
-}
+    // roll normal loot (stats always use this)
+    const hr = day();
+    const list = loot.filter(a => ok(a, hr));
+    const itm = pick(list.length ? list : loot);
 
-function toast(ico, msg) {
-    const d = document.createElement("div");
-    d.className = "to";
-    const i = document.createElement("img");
-    i.src = ico;
-    const s = document.createElement("span");
-    s.textContent = msg;
-    d.appendChild(i);
-    d.appendChild(s);
-    tos.appendChild(d);
-    setTimeout(() => {
-        d.style.opacity = "0";
-        d.style.transform = "translateY(-4px)";
-        d.style.transition = "150ms";
-        setTimeout(() => d.remove(), 220);
-    }, 2800);
-}
+    // lore override (linear order)
+    let id = itm.iden;
+    let ico = itm.icon;
+    let nam = itm.name;
 
-// ----- Fishing -----
-let st = 0; // 0 idle, 1 wait, 2 win
-let t0 = 0;
-let dur = 0;
-let win = null;
-
-function reset() {
-    st = 0;
-    btn.textContent = "Fish";
-    fill.style.width = "0%";
-    fill.style.background = "rgba(255,255,255,.30)";
-    if (win) clearTimeout(win);
-    win = null;
-}
-
-function roll() {
-    const h = hr();
-    const ok = loot.filter(it => hit(h, it.time || [[0, 24]]));
-
-    // fallback if nothing matches
-    const arr = (ok.length ? ok : loot).map(it => ({ v: it, w: rwt[it.rrty] || 1 }));
-    return pick(arr);
-}
-
-function reel() {
-    // normal loot choice (also drives catch counters even if lore replaces)
-    const it = roll();
-
-    // lore check: linear order, milestone on total+1
-    const tot = sum();
-    const li = dat.lore || 0;
-    const nx = lore[li];
-
-    let got = it;
-    let id = it.iden;
-    let q = Math.min(it.stak || 1, 1 + (Math.random() * 3 | 0));
-
-    const mark = (nx && (tot + 1) === nx.ctch);
-    if (mark) {
-        got = meta("l" + li);
+    if (li < lore.length && (tot + 1) === lore[li].ctch) {
         id = "l" + li;
-        q = 1;
-        dat.lore = li + 1;
+        ico = lore[li].icon;
+        nam = lore[li].name;
+        c.lore = li + 1;
     }
 
-    // increment counters using chosen loot category/rarity (even if lore item replaces the reward)
-    const c = it.ctgy;
-    const r = rmap[it.rrty] || "C";
-    if (dat[c] && dat[c][r] != null) dat[c][r] += 1;
+    // stats: category + rarity from normal roll
+    inc(c, itm.ctgy, rmap[itm.rrty] || "C");
+    savec(c);
 
-    save(key, dat);
-    add(id, q);
+    return { id, icon: ico, name: nam };
+}
+
+function ok(a, hr) {
+    for (const r of a.time) {
+        const s = r[0], e = r[1];
+        if (hr >= s && hr < e) return true;
+    }
+    return false;
+}
+
+function pick(list) {
+    let sum = 0;
+    for (const a of list) sum += (rw[a.rrty] || 1);
+    let r = Math.random() * sum;
+    for (const a of list) {
+        r -= (rw[a.rrty] || 1);
+        if (r <= 0) return a;
+    }
+    return list[list.length - 1];
+}
+
+function totc(c) {
+    let n = 0;
+    for (const k of ["fish", "junk", "treasure"]) {
+        const b = c[k];
+        for (const r of ["C", "U", "R", "E", "L"]) n += (b[r] || 0);
+    }
+    return n;
+}
+
+function inc(c, k, r) {
+    c[k] = c[k] || { C: 0, U: 0, R: 0, E: 0, L: 0 };
+    c[k][r] = (c[k][r] || 0) + 1;
+}
+
+function initc() {
+    if (!localStorage.getItem(keyc)) {
+        const c = {
+            lore: 0,
+            fish: { C: 0, U: 0, R: 0, E: 0, L: 0 },
+            junk: { C: 0, U: 0, R: 0, E: 0, L: 0 },
+            treasure: { C: 0, U: 0, R: 0, E: 0, L: 0 }
+        };
+        localStorage.setItem(keyc, JSON.stringify(c));
+    }
+}
+
+function loadc() { return JSON.parse(localStorage.getItem(keyc)); }
+function savec(c) { localStorage.setItem(keyc, JSON.stringify(c)); }
+
+function initi() {
+    const raw = localStorage.getItem(keyi);
+    inv = raw ? JSON.parse(raw) : Array(45).fill(null);
+    savei();
+}
+function savei() { localStorage.setItem(keyi, JSON.stringify(inv)); }
+
+// ---------- inv logic ----------
+function add(id, n) {
+    const it = lib[id];
+    if (!it) return;
+
+    let left = n;
+    const max = it.stak || 1;
+
+    // stack first
+    for (let i = 0; i < inv.length; i++) {
+        const s = inv[i];
+        if (!s || s.id !== id) continue;
+        const can = max - s.n;
+        if (can <= 0) continue;
+        const put = Math.min(can, left);
+        s.n += put;
+        left -= put;
+        if (!left) break;
+    }
+    // empty slots
+    for (let i = 0; i < inv.length && left; i++) {
+        if (inv[i]) continue;
+        const put = Math.min(max, left);
+        inv[i] = { id, n: put };
+        left -= put;
+    }
+
+    savei();
     draw();
-
-    toast(got.icon, `You caught x${q} ${got.name}!`);
 }
 
-function tickbar() {
-    if (st !== 1) return;
-    const t = performance.now();
-    const p = Math.min(1, (t - t0) / dur);
-    fill.style.width = (p * 100).toFixed(1) + "%";
-    requestAnimationFrame(tickbar);
-}
-
-function go() {
-    if (st === 0) {
-        st = 1;
-        btn.textContent = "Reel In";
-        fill.style.width = "0%";
-        fill.style.background = "rgba(255,255,255,.30)";
-        dur = 2000 + Math.random() * 4000;
-        t0 = performance.now();
-        tickbar();
-
-        setTimeout(() => {
-            if (st !== 1) return;
-            st = 2;
-            fill.style.width = "100%";
-            fill.style.background = "rgba(120,255,180,.55)";
-            win = setTimeout(() => {
-                if (st !== 2) return;
-                toast("./Source/Assets/Icons/error.png", "The fish escaped!");
-                reset();
-            }, 2000);
-        }, dur);
-
-        return;
-    }
-
-    if (st === 1) {
-        toast("./Source/Assets/Icons/error.png", "Too quick!");
-        return;
-    }
-
-    if (st === 2) {
-        if (win) clearTimeout(win);
-        win = null;
-        reel();
-        reset();
-    }
-}
-
-on(btn, "click", () => {
-    if (bagon || vwon) return;
-    go();
-});
-
-// ----- Backpack UI -----
 function draw() {
-    inv.innerHTML = "";
+    grd.innerHTML = "";
     for (let i = 0; i < 45; i++) {
         const d = document.createElement("div");
-        d.className = "slot";
+        d.className = "sl";
         d.dataset.i = i;
 
-        const s = slot[i];
+        const s = inv[i];
         if (s) {
-            const m = meta(s.id);
-            if (m) {
+            const it = lib[s.id];
+            if (it) {
                 const im = document.createElement("img");
-                im.className = "ico";
-                im.src = m.icon;
+                im.src = it.icon;
+                im.draggable = false;
                 d.appendChild(im);
 
-                if (s.q > 1) {
-                    const q = document.createElement("div");
-                    q.className = "qty";
-                    q.textContent = s.q;
-                    d.appendChild(q);
+                if (s.n > 1) {
+                    const n = document.createElement("div");
+                    n.className = "n";
+                    n.textContent = s.n;
+                    d.appendChild(n);
                 }
             }
         }
 
-        on(d, "mouseenter", () => info(i));
-        on(d, "mouseleave", () => { cls(inf, "off", true); });
-        on(d, "mousedown", (e) => slotdown(e, i));
+        d.addEventListener("mouseenter", () => show(i));
+        d.addEventListener("mouseleave", () => show(-1));
+        d.addEventListener("click", (e) => click(i, e.shiftKey));
+        d.addEventListener("contextmenu", (e) => rclk(i, e));
 
-        inv.appendChild(d);
+        grd.appendChild(d);
     }
 }
 
-function info(i) {
-    const s = slot[i];
-    if (!s) { cls(inf, "off", true); return; }
-    const m = meta(s.id);
-    if (!m) { cls(inf, "off", true); return; }
+function click(i, sh) {
+    if (mode !== 1) return;
 
-    cls(inf, "off", false);
-
-    const a = [];
-    if (m.ctgy !== "lore") {
-        a.push(`Cat: ${m.ctgy}`);
-        a.push(`Rarity: ${m.rrty}`);
-        a.push(`Price: $${m.slsp}`);
-        a.push(`Stack: ${m.stak}`);
-        a.push(`Wght: ${m.wght}lb`);
-        a.push(`XP: ${m.xpmi}-${m.xpma}`);
-    } else {
-        a.push(`Type: lore`);
-        a.push(`Qty: ${s.q}`);
-    }
-
-    inf.innerHTML = `
-    <div class="t">${m.name} <span style="color:rgba(255,255,255,.65);font-size:18px">x${s.q}</span></div>
-    <div class="d">${m.desc}</div>
-    <div class="m">${a.join(" • ")}</div>
-  `;
-}
-
-function handdraw() {
-    if (!hand) {
-        cls(cur, "off", true);
+    if (sh) {
+        qmv(i);
         return;
     }
-    const m = meta(hand.id);
-    if (!m) { hand = null; cls(cur, "off", true); return; }
-    curi.src = m.icon;
-    curq.textContent = hand.q > 1 ? hand.q : "";
-    cls(cur, "off", false);
+
+    const s = inv[i];
+
+    // pick
+    if (!hand && s) {
+        hand = { id: s.id, n: s.n };
+        inv[i] = null;
+        savei(); draw();
+        showcur();
+        return;
+    }
+
+    // place
+    if (hand) {
+        if (!s) {
+            inv[i] = { id: hand.id, n: hand.n };
+            hand = null;
+            savei(); draw();
+            showcur();
+            return;
+        }
+
+        // merge if same
+        if (s.id === hand.id) {
+            const it = lib[s.id];
+            const max = it.stak || 1;
+            const can = max - s.n;
+            if (can > 0) {
+                const put = Math.min(can, hand.n);
+                s.n += put;
+                hand.n -= put;
+                if (hand.n <= 0) hand = null;
+                savei(); draw();
+                showcur();
+                return;
+            }
+        }
+
+        // swap
+        const tmp = { id: s.id, n: s.n };
+        inv[i] = { id: hand.id, n: hand.n };
+        hand = tmp;
+        savei(); draw();
+        showcur();
+    }
 }
 
-function mv(i, a0, a1) {
-    // move stack from i into first merge/empty in [a0,a1)
-    const s = slot[i];
+function qmv(i) {
+    const s = inv[i];
     if (!s) return;
 
-    const m = meta(s.id);
-    const max = (m?.stak || 1);
+    const top = i < 27;
+    const a0 = top ? 27 : 0;
+    const a1 = top ? 45 : 27;
 
-    // try merge
-    for (let j = a0; j < a1; j++) {
-        if (j === i) continue;
-        const t = slot[j];
-        if (!t || t.id !== s.id) continue;
-        const can = Math.max(0, max - t.q);
+    const it = lib[s.id];
+    const max = it.stak || 1;
+
+    // stack
+    for (let j = a0; j < a1 && s.n > 0; j++) {
+        const d = inv[j];
+        if (!d || d.id !== s.id) continue;
+        const can = max - d.n;
         if (can <= 0) continue;
-        const put = Math.min(can, s.q);
-        t.q += put;
-        s.q -= put;
-        if (s.q <= 0) { slot[i] = null; return; }
+        const put = Math.min(can, s.n);
+        d.n += put;
+        s.n -= put;
+    }
+    // empty
+    for (let j = a0; j < a1 && s.n > 0; j++) {
+        if (inv[j]) continue;
+        const put = Math.min(max, s.n);
+        inv[j] = { id: s.id, n: put };
+        s.n -= put;
     }
 
-    // empty slot
-    for (let j = a0; j < a1; j++) {
-        if (j === i) continue;
-        if (slot[j]) continue;
-        slot[j] = { id: s.id, q: s.q };
-        slot[i] = null;
-        return;
-    }
+    if (s.n <= 0) inv[i] = null;
+
+    savei(); draw();
+    showcur();
 }
 
-function slotdown(e, i) {
+function show(i) {
+    hov = i;
+    if (mode !== 1) return;
+
+    if (i < 0 || !inv[i]) {
+        in0.textContent = "Hover an item";
+        in1.textContent = "";
+        return;
+    }
+
+    const s = inv[i];
+    const it = lib[s.id];
+    if (!it) return;
+
+    in0.textContent = it.name;
+    const p = it.sell ? `$${it.slsp}` : "Not sellable";
+    const w = (it.wght != null) ? `${it.wght} lbs` : "-";
+    const st = (it.stak != null) ? `Stack ${it.stak}` : "-";
+    const cat = it.ctgy;
+    const rr = it.rrty;
+
+    in1.innerHTML =
+        `${it.desc}<br>` +
+        `Cat: <b>${cat}</b> &nbsp; Rr: <b>${rr}</b><br>` +
+        `Price: <b>${p}</b> &nbsp; ${st} &nbsp; W: <b>${w}</b>`;
+}
+
+function rclk(i, e) {
+    if (mode !== 1) return;
     e.preventDefault();
 
-    const s = slot[i];
-    const m = s ? meta(s.id) : null;
+    const s = inv[i];
+    if (!s) return;
+    const it = lib[s.id];
+    if (!it || it.ctgy !== "lore") return;
 
-    // Shift-click quick move (main <-> bar)
-    if (e.button === 0 && e.shiftKey && s && !hand) {
-        const isbar = i >= 36;
-        if (isbar) mv(i, 0, 36);
-        else mv(i, 36, 45);
-        save(ikey, slot);
-        draw();
-        return;
-    }
-
-    // Right-click: lore view OR split/place-one
-    if (e.button === 2) {
-        if (s && m && m.file) {
-            openview(m.file);
-            return;
-        }
-
-        // split / place-one
-        if (!hand && s) {
-            const take = Math.ceil(s.q / 2);
-            hand = { id: s.id, q: take };
-            s.q -= take;
-            if (s.q <= 0) slot[i] = null;
-            save(ikey, slot);
-            draw();
-            handdraw();
-            return;
-        }
-
-        if (hand) {
-            const hm = meta(hand.id);
-            const max = (hm?.stak || 1);
-
-            if (!s) {
-                slot[i] = { id: hand.id, q: 1 };
-                hand.q -= 1;
-                if (hand.q <= 0) hand = null;
-            } else if (s.id === hand.id && s.q < max) {
-                s.q += 1;
-                hand.q -= 1;
-                if (hand.q <= 0) hand = null;
-            }
-            save(ikey, slot);
-            draw();
-            handdraw();
-        }
-        return;
-    }
-
-    // Left-click: pickup/move/swap/merge
-    if (e.button === 0) {
-        if (!hand && s) {
-            hand = { id: s.id, q: s.q };
-            slot[i] = null;
-            save(ikey, slot);
-            draw();
-            handdraw();
-            return;
-        }
-
-        if (hand && !s) {
-            slot[i] = { id: hand.id, q: hand.q };
-            hand = null;
-            save(ikey, slot);
-            draw();
-            handdraw();
-            return;
-        }
-
-        if (hand && s) {
-            if (hand.id === s.id) {
-                const hm = meta(hand.id);
-                const max = (hm?.stak || 1);
-                const can = Math.max(0, max - s.q);
-                if (can > 0) {
-                    const put = Math.min(can, hand.q);
-                    s.q += put;
-                    hand.q -= put;
-                    if (hand.q <= 0) hand = null;
-                    save(ikey, slot);
-                    draw();
-                    handdraw();
-                    return;
-                }
-            }
-            // swap
-            const tmp = { id: s.id, q: s.q };
-            slot[i] = { id: hand.id, q: hand.q };
-            hand = tmp;
-            save(ikey, slot);
-            draw();
-            handdraw();
-        }
-    }
+    // open lore file view
+    mode = 2;
+    bag.style.display = "none";
+    inf.style.display = "none";
+    view.style.display = "flex";
+    pic.src = it.file;
 }
 
-function openbag(v) {
-    bagon = !!v;
-    cls(bag, "off", !bagon);
-    cls(ui, "hid", bagon);
-    if (bagon) {
-        reset();
-        draw();
+// cursor
+window.addEventListener("mousemove", (e) => {
+    if (mode !== 1 || !hand) {
+        cur.style.display = "none";
+        return;
+    }
+    cur.style.display = "block";
+    cur.style.left = e.clientX + "px";
+    cur.style.top = e.clientY + "px";
+});
+
+function showcur() {
+    if (mode === 1 && hand) {
+        curi.src = lib[hand.id]?.icon || "";
+        curn.textContent = hand.n > 1 ? hand.n : "";
+        cur.style.display = "block";
     } else {
-        cls(inf, "off", true);
+        cur.style.display = "none";
     }
 }
 
-function openview(src) {
-    vwon = true;
-    pic.src = src;
-    cls(view, "off", false);
-    cls(bag, "off", true);
-    cls(ui, "hid", true);
-}
-
-function closeview() {
-    vwon = false;
-    cls(view, "off", true);
-    // reopen backpack
-    cls(bag, "off", false);
-    cls(ui, "hid", true);
-}
-
-on(document, "mousemove", (e) => {
-    if (!hand) return;
-    cur.style.transform = `translate(${e.clientX + 10}px, ${e.clientY + 10}px)`;
-});
-
-on(document, "contextmenu", (e) => {
-    if (bagon || vwon) e.preventDefault();
-});
-
-on(view, "mousedown", () => {
-    if (vwon) closeview();
-});
-
-on(document, "keydown", (e) => {
-    const k = e.key.toLowerCase();
-
-    if (k === "e") {
-        if (vwon) { closeview(); return; }
-        openbag(!bagon);
+// ---------- keys / modes ----------
+window.addEventListener("keydown", (e) => {
+    if (e.key === "e" || e.key === "E") {
+        if (mode === 2) closev();
+        else if (mode === 1) closeb();
+        else openb();
     }
-
-    if (k === "escape") {
-        if (vwon) { closeview(); return; }
+    if (e.key === "Escape") {
+        if (mode === 2) closev();
+        else if (mode === 1) closeb();
     }
 });
 
-// ----- Three.js water + day cycle + seagulls -----
-let ren, scn, cam, wtr, tex, amb, sun, fog, star;
-let gull = [];
-let nxt = 0;
+view.addEventListener("click", () => {
+    if (mode === 2) closev();
+});
 
-function lerp(a, b, t) { return a + (b - a) * t; }
-function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
-
-function col(a, b, t) {
-    const ca = new THREE.Color(a);
-    const cb = new THREE.Color(b);
-    return ca.lerp(cb, clamp(t, 0, 1));
+function openb() {
+    mode = 1;
+    document.body.classList.add("hide");
+    bag.style.display = "block";
+    inf.style.display = "block";
+    show(-1);
+    showcur();
 }
 
-function sky(h) {
-    // keyframes: night(0-5), sunrise(5-7), day(7-18), sunset(18-20), night(20-24)
-    if (h < 5) {
-        return { c: col("#060b18", "#060b18", 0), s: 0.15, a: 0.18, st: 1 };
-    }
-    if (h < 7) {
-        const t = (h - 5) / 2;
-        return { c: col("#08142a", "#ff7a3a", t), s: lerp(0.25, 0.85, t), a: lerp(0.22, 0.45, t), st: lerp(1, 0.2, t) };
-    }
-    if (h < 18) {
-        const t = (h - 7) / 11;
-        return { c: col("#87ceeb", "#7fd3ff", t), s: lerp(0.95, 1.10, t), a: lerp(0.45, 0.55, t), st: 0 };
-    }
-    if (h < 20) {
-        const t = (h - 18) / 2;
-        return { c: col("#6fb7ff", "#ff4b1f", t), s: lerp(0.95, 0.35, t), a: lerp(0.55, 0.25, t), st: lerp(0, 0.6, t) };
-    }
-    {
-        const t = (h - 20) / 4;
-        return { c: col("#1a0f2a", "#060b18", t), s: lerp(0.25, 0.15, t), a: lerp(0.22, 0.18, t), st: lerp(0.8, 1, t) };
-    }
+function closeb() {
+    mode = 0;
+    document.body.classList.remove("hide");
+    bag.style.display = "none";
+    inf.style.display = "none";
+    hand = null;
+    showcur();
 }
 
-function mkstar() {
-    const n = 900;
-    const g = new THREE.BufferGeometry();
-    const p = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-        // hemisphere above
-        const r = 600 + Math.random() * 220;
-        const th = Math.random() * Math.PI * 2;
-        const ph = Math.random() * Math.PI * 0.45; // tighter
-        const x = Math.cos(th) * Math.sin(ph) * r;
-        const y = Math.cos(ph) * r + 80;
-        const z = Math.sin(th) * Math.sin(ph) * r;
-        p[i * 3 + 0] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = z;
-    }
-    g.setAttribute("position", new THREE.BufferAttribute(p, 3));
-    const m = new THREE.PointsMaterial({ size: 1.2, transparent: true, opacity: 0.9 });
-    const s = new THREE.Points(g, m);
-    return s;
+function closev() {
+    mode = 1;
+    view.style.display = "none";
+    bag.style.display = "block";
+    inf.style.display = "block";
+    show(hov);
+    showcur();
 }
 
-function mkbird() {
-    const g = new THREE.Group();
+// ---------- toast ----------
+function toast(ico, msg) {
+    const d = document.createElement("div");
+    d.className = "t";
 
-    const b = new THREE.Mesh(
-        new THREE.SphereGeometry(0.6, 10, 10),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 })
-    );
-    b.scale.set(1.2, 0.8, 1.8);
-    g.add(b);
+    const i = document.createElement("img");
+    i.src = ico;
 
-    const w1 = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.2, 0.5),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.9 })
-    );
-    const w2 = w1.clone();
-    w1.position.set(-0.9, 0.15, 0);
-    w2.position.set(0.9, 0.15, 0);
-    w1.rotation.y = Math.PI / 2;
-    w2.rotation.y = -Math.PI / 2;
-    g.add(w1); g.add(w2);
+    const s = document.createElement("span");
+    s.textContent = msg;
 
-    g.userData.w1 = w1;
-    g.userData.w2 = w2;
+    d.appendChild(i);
+    d.appendChild(s);
+    ts.appendChild(d);
 
-    // flight params
-    g.userData.ang = Math.random() * Math.PI * 2;
-    g.userData.rad = 40 + Math.random() * 70;
-    g.userData.spd = 0.25 + Math.random() * 0.35;
-    g.userData.alt = 18 + Math.random() * 18;
-    g.userData.die = performance.now() + 12000 + Math.random() * 12000;
+    setTimeout(() => {
+        d.style.opacity = "0";
+        d.style.transform = "translateY(-6px)";
+        d.style.transition = "opacity .18s ease, transform .18s ease";
+    }, 2200);
 
-    return g;
+    setTimeout(() => d.remove(), 2500);
 }
 
-function spawn() {
-    const b = mkbird();
-    scn.add(b);
-    gull.push(b);
+// ---------- time (24 min loop) ----------
+const tday = 24 * 60 * 1000; // 24 real minutes
+function day() {
+    const ms = performance.now() % tday;
+    return (ms / tday) * 24; // 0..24
 }
+
+// ---------- three ----------
+let sc, cam, rd, wat, tex, sun, amb, fog, sky, star, gull;
+init3();
+loop();
 
 function init3() {
-    scn = new THREE.Scene();
+    sc = new THREE.Scene();
 
-    cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 3000);
-    cam.position.set(0, 34, 72);
+    cam = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 20000);
+    cam.position.set(0, 9, 22);
     cam.lookAt(0, 0, 0);
 
-    ren = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    ren.setSize(innerWidth, innerHeight);
-    ren.setPixelRatio(Math.min(devicePixelRatio, 2));
-    document.body.appendChild(ren.domElement);
+    rd = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    rd.setSize(innerWidth, innerHeight);
+    rd.setPixelRatio(Math.min(devicePixelRatio, 2));
+    bg.appendChild(rd.domElement);
 
-    fog = new THREE.Fog(new THREE.Color("#0b1020"), 120, 520);
-    scn.fog = fog;
-
-    amb = new THREE.AmbientLight(0xffffff, 0.35);
-    scn.add(amb);
-
-    sun = new THREE.DirectionalLight(0xffffff, 0.9);
-    sun.position.set(80, 120, 50);
-    scn.add(sun);
-
-    // Water
-    tex = new THREE.TextureLoader().load("./Source/Assets/Terrain/water.png");
+    const load = new THREE.TextureLoader();
+    tex = load.load("./Source/Assets/Terrain/water.png");
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(120, 120);
+    tex.repeat.set(1200, 1200);
 
+    const geo = new THREE.PlaneGeometry(20000, 20000, 1, 1);
     const mat = new THREE.MeshPhongMaterial({
         map: tex,
         transparent: true,
-        opacity: 0.82,
+        opacity: 0.78,
         shininess: 80,
-        specular: new THREE.Color(0x88aaff),
-        color: new THREE.Color(0xffffff)
+        depthWrite: false
     });
 
-    wtr = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400, 1, 1), mat);
-    wtr.rotation.x = -Math.PI / 2;
-    wtr.position.y = 0;
-    scn.add(wtr);
+    wat = new THREE.Mesh(geo, mat);
+    wat.rotation.x = -Math.PI / 2;
+    wat.position.y = 0;
+    sc.add(wat);
 
-    // Stars
+    fog = new THREE.Fog(new THREE.Color("#0a0c12"), 60, 800);
+    sc.fog = fog;
+
+    amb = new THREE.AmbientLight(0xffffff, 0.35);
+    sc.add(amb);
+
+    sun = new THREE.DirectionalLight(0xffffff, 0.9);
+    sun.position.set(60, 80, 30);
+    sc.add(sun);
+
     star = mkstar();
-    scn.add(star);
+    sc.add(star);
 
-    // Initial gulls (2-3 occasionally)
-    const n = 2 + (Math.random() * 2 | 0);
-    for (let i = 0; i < n; i++) spawn();
-    nxt = performance.now() + 9000;
+    gull = mkgull();
+    sc.add(gull.g);
+    spawn();
 
-    on(window, "resize", () => {
+    window.addEventListener("resize", () => {
         cam.aspect = innerWidth / innerHeight;
         cam.updateProjectionMatrix();
-        ren.setSize(innerWidth, innerHeight);
+        rd.setSize(innerWidth, innerHeight);
     });
-
-    let lt = performance.now();
-    function loop() {
-        const t = performance.now();
-        const dt = Math.min(0.05, (t - lt) / 1000);
-        lt = t;
-
-        // subtle camera sway
-        cam.position.x = Math.sin(t * 0.00035) * 1.5;
-        cam.position.y = 34 + Math.sin(t * 0.00055) * 0.9;
-        cam.lookAt(0, 0, 0);
-
-        // water slide
-        if (tex) {
-            tex.offset.x += dt * 0.010;
-            tex.offset.y += dt * 0.008;
-        }
-
-        // day cycle
-        const h = hr();
-        const s = sky(h);
-
-        ren.setClearColor(s.c, 1);
-        fog.color.copy(s.c);
-
-        amb.intensity = s.a;
-        sun.intensity = s.s;
-        sun.color.copy(col("#fff2cc", "#ffffff", clamp((h - 7) / 2, 0, 1)));
-
-        // stars fade
-        star.material.opacity = clamp(s.st, 0, 1);
-        star.visible = star.material.opacity > 0.02;
-
-        // gull spawn/despawn
-        if (t > nxt && gull.length < 3) {
-            spawn();
-            nxt = t + 8000 + Math.random() * 9000;
-        }
-
-        for (let i = gull.length - 1; i >= 0; i--) {
-            const b = gull[i];
-            if (t > b.userData.die && gull.length > 2) {
-                scn.remove(b);
-                gull.splice(i, 1);
-                continue;
-            }
-
-            b.userData.ang += b.userData.spd * dt;
-            const a = b.userData.ang;
-            const r = b.userData.rad;
-
-            const x = Math.cos(a) * r;
-            const z = Math.sin(a) * r;
-            const y = b.userData.alt + Math.sin(a * 2.2) * 1.2;
-
-            b.position.set(x, y, z);
-
-            // face direction
-            const nx = -Math.sin(a);
-            const nz = Math.cos(a);
-            b.rotation.y = Math.atan2(nx, nz);
-
-            // wings flap
-            const f = Math.sin(t * 0.010 * 8) * 0.9;
-            b.userData.w1.rotation.z = f;
-            b.userData.w2.rotation.z = -f;
-        }
-
-        ren.render(scn, cam);
-        requestAnimationFrame(loop);
-    }
-    loop();
 }
 
-// ----- Boot -----
-draw();
-handdraw();
-reset();
-init3();
+function loop() {
+    const hr = day();
+    sky = col(hr);
+
+    sc.background = sky;
+    fog.color.copy(sky);
+
+    // lights
+    const nf = night(hr); // 0..1
+    amb.intensity = 0.25 + (1 - nf) * 0.25;
+    sun.intensity = 0.15 + (1 - nf) * 1.05;
+    sun.color.copy(suncol(hr));
+
+    // stars fade in at night
+    star.material.opacity = nf;
+    star.material.needsUpdate = true;
+
+    // water scroll
+    tex.offset.x += 0.00028;
+    tex.offset.y += 0.00018;
+
+    // gull anim
+    gulltick();
+
+    rd.render(sc, cam);
+    requestAnimationFrame(loop);
+}
+
+// ----- sky / day stages -----
+function col(hr) {
+    // stages: night [0-5,20-24], sunrise [5-8], day [8-17], sunset [17-20]
+    if (hr < 5) return lerp("#060814", "#0a0c18", hr / 5);
+    if (hr < 8) return lerp("#0a0c18", "#ff9a62", (hr - 5) / 3);
+    if (hr < 17) return lerp("#9ddcff", "#bfe9ff", (hr - 8) / 9);
+    if (hr < 20) return lerp("#ff8a5a", "#2a1b3d", (hr - 17) / 3);
+    return lerp("#2a1b3d", "#060814", (hr - 20) / 4);
+}
+
+function suncol(hr) {
+    if (hr < 5) return new THREE.Color("#9bb7ff");
+    if (hr < 8) return new THREE.Color(lerp("#ffd2a6", "#ffffff", (hr - 5) / 3));
+    if (hr < 17) return new THREE.Color("#ffffff");
+    if (hr < 20) return new THREE.Color(lerp("#ffd2a6", "#ffb07a", (hr - 17) / 3));
+    return new THREE.Color("#9bb7ff");
+}
+
+function night(hr) {
+    // 1 at deep night, 0 at day
+    if (hr < 5) return 1;
+    if (hr < 8) return 1 - (hr - 5) / 3;
+    if (hr < 17) return 0;
+    if (hr < 20) return (hr - 17) / 3;
+    return 1;
+}
+
+function lerp(a, b, t) {
+    const ca = new THREE.Color(a);
+    const cb = new THREE.Color(b);
+    const c = ca.lerp(cb, clamp(t));
+    return c;
+}
+function clamp(x) { return Math.max(0, Math.min(1, x)); }
+
+// ----- stars -----
+function mkstar() {
+    const n = 1200;
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+        const r = 900 + Math.random() * 600;
+        const th = Math.random() * Math.PI * 2;
+        const y = 120 + Math.random() * 320;
+        pos[i * 3 + 0] = Math.cos(th) * r;
+        pos[i * 3 + 1] = y;
+        pos[i * 3 + 2] = Math.sin(th) * r;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 1, depthWrite: false });
+    return new THREE.Points(g, m);
+}
+
+// ----- gulls -----
+function mkgull() {
+    const g = new THREE.Group();
+    g.visible = false;
+
+    const body = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 })
+    );
+
+    const wmat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.9 });
+    const wing = new THREE.PlaneGeometry(0.9, 0.22);
+
+    const l = new THREE.Mesh(wing, wmat);
+    const r = new THREE.Mesh(wing, wmat);
+    l.position.set(-0.55, 0, 0);
+    r.position.set(0.55, 0, 0);
+    l.rotation.y = 0.25;
+    r.rotation.y = -0.25;
+
+    g.add(body, l, r);
+
+    return { g, l, r, t: 0, a: 0, s: 0, x: 0, z: 0, y: 0, sp: 0 };
+}
+
+function spawn() {
+    // 2-3 gulls occasionally: we reuse one gull, but spawn it 2-3 times per minute-ish
+    const n = 2 + Math.floor(Math.random() * 2); // 2..3
+    let k = 0;
+
+    const go = () => {
+        if (k >= n) return;
+        k++;
+
+        gull.g.visible = true;
+        gull.t = 0;
+        gull.a = Math.random() * Math.PI * 2;
+        gull.s = (Math.random() * 2 - 1) * 1;
+        gull.y = 12 + Math.random() * 10;
+        gull.sp = 0.8 + Math.random() * 0.8;
+
+        // run 6-10s then hide
+        setTimeout(() => { gull.g.visible = false; }, 6500 + Math.random() * 3500);
+
+        setTimeout(go, 900 + Math.random() * 1400);
+    };
+
+    go();
+
+    // next cycle
+    setTimeout(spawn, 9000 + Math.random() * 16000);
+}
+
+function gulltick() {
+    if (!gull.g.visible) return;
+
+    gull.t += 0.06;
+
+    // orbit-ish pass
+    const r = 55;
+    const a = gull.a + gull.t * gull.sp * 0.2;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+
+    gull.g.position.set(x, gull.y + Math.sin(gull.t * 0.7) * 0.6, z);
+    gull.g.lookAt(0, gull.y, 0);
+
+    // flap
+    const f = Math.sin(gull.t * 7.0) * 0.55;
+    gull.l.rotation.z = f;
+    gull.r.rotation.z = -f;
+}
+
+// ---------- helpers ----------
+function $(q) { return document.querySelector(q); }

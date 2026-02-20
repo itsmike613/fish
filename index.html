@@ -14,41 +14,41 @@
 </head>
 
 <body>
-	<!-- UI -->
+	<div id="bg"></div>
+
 	<div id="ui">
 		<div id="fish" class="card">
 			<button id="btn" class="btn">Fish</button>
-			<div id="bar" class="bar">
-				<div id="fill" class="fill"></div>
+			<div id="bar">
+				<div id="fill"></div>
 			</div>
+			<div id="hint">Press <b>E</b> for Backpack</div>
 		</div>
 	</div>
 
-	<!-- Backpack -->
-	<div id="bag" class="off">
-		<div id="box" class="box">
-			<div id="inv" class="inv"></div>
-		</div>
-		<div id="inf" class="inf off"></div>
+	<div id="bag" aria-hidden="true">
+		<div id="ttl">Backpack</div>
+		<div id="grd"></div>
 	</div>
 
-	<!-- Lore view -->
-	<div id="view" class="off">
+	<div id="inf" aria-hidden="true">
+		<div id="in0">Hover an item</div>
+		<div id="in1"></div>
+	</div>
+
+	<div id="view" aria-hidden="true">
 		<img id="pic" alt="lore" />
 	</div>
 
-	<!-- Cursor item -->
-	<div id="cur" class="off">
+	<div id="cur" aria-hidden="true">
 		<img id="curi" alt="" />
-		<div id="curq"></div>
+		<div id="curn"></div>
 	</div>
 
-	<!-- Toasts -->
-	<div id="tos"></div>
+	<div id="ts"></div>
 
-	<!-- Three.js (global THREE) -->
 	<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-	<script defer src="./Source/Scripts/index.js"></script>
+	<script src="./Source/Scripts/index.js" defer></script>
 </body>
 
 </html>
