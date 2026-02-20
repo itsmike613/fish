@@ -1,59 +1,3 @@
-Without Game
------------------------------------------------------------------------------------------------
-Create a fishing game UI (not the game, just the UI) using HTML, CSS, JS, Three.JS.
-Make it so it works on mobile, desktop, and all other device types.
-
-Background:
-The background of the entire website should be water using water.png for infinity, as far as the player can see, using Three.JS.
-Make the water slightly transparent, and "moving" sliding animation to make it feel more immersive.
-Add flying seagulls (white with flapping wings) flying around a couple (2-3) occasionally.
-
-Main Page Content:
-Create a card with a button on it that says "Fish", on the bottom of the button add a progress bar, by default it is empty.
-When I make the game functional, I want the Fish button to become disabled after pressing it, change the button text to "Reel In", and make the progress bar last 2-6 seconds.
-After that time is up, the player needs to press "Reel In" within 2 seconds. or they lose the fish and the button goes back to "Fish" state. (This adds difficulty, by giving only two seconds to reel in the fish)
-
-Inventory Page:
-Pressing (E) on computer or pressing the (Inventory) button on computer/mobile, hides all the content on the page (fishing card, etc.)
-It opens the inventory modal, 5 rows of 9 slots. Just like the Minecraft inventory, shift click to quick move, click to pickup/move, etc.
-Pressing (E) again or pressing the button below the inventory modal closes the inventory modal and goes back to the home page (fishing)
-
-Toast Structure:
-"[icon] _message_"
-
-Toasts:
-Catching an item from Reel In button will show a toast that has the item they caught on the left (icon), then the message "You caught xN [itemname]!"
-Failing to catch within two seconds will make the toast icon "fishingcatcherror.png" with the message "The fish escaped!"
-
-File Structure:
-fish/Source/Assets/Terrain/water.png
-fish/Source/Assets/Catches/Fish/salmon.png
-fish/Source/Assets/Catches/Junk/boot.png
-fish/Source/Assets/Catches/Treasure/crown.png
-fish/Source/Assets/Catches/Lore/researchlog.png
-fish/Source/Assets/Catches/Lore/travelbrochure.png
-fish/Source/Assets/Catches/Files/researchlog1.png
-fish/Source/Assets/Catches/Files/travelbrochure.png
-fish/Source/Assets/Catches/Files/researchlog2.png
-fish/Source/Scripts/index.js
-fish/Source/Styles/index.css
-fish/index.html
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-With Game
-------------------------------------------------------------------------------------------------
 Create a fishing game using HTML, CSS, JS, and Three.JS.
 
 Background:
@@ -67,11 +11,12 @@ Once the Fish button is clicked, Change the button text to "Reel In", and make t
 Pressing the Reel In button too early will show a too early error toast
 After that time is up, the player needs to press "Reel In" within 2 seconds. or they lose the fish and the button goes back to "Fish" state. (This adds difficulty, by giving only two seconds to reel in the fish)
 
-Inventory Page:
+Backpack Page (Inventory):
 Pressing (E), hides all the content on the page (fishing card, etc.)
-It opens the inventory modal, 5 rows of 9 slots. Just like the Minecraft inventory, shift click to quick move, click to pickup/move, etc.
-Pressing (E) again closes the inventory modal and goes back to the home page (fishing)
-Hovering over an item (with mouse) will display a modal under the inventory menu, this modal should have info on the current item being hovered, such as the name, description, price, and everything else.
+It opens the backpack modal, 5 rows of 9 slots. Just like the Minecraft inventory, shift click to quick move, click to pickup/move, etc.
+Pressing (E) again closes the backpack modal and goes back to the home page (fishing)
+Hovering over an item (with mouse) will display a modal under the backpack menu, this modal should have info on the current item being hovered, such as the name, description, price, and everything else.
+The backpack modal should stay the same size always, the hover item info creates the info modal below the backpack modal and should not shift the backpack modal up or any direction.
 
 Toast Structure:
 "[icon] _message_"
@@ -92,14 +37,22 @@ Calculate the total number of fish caught on demand by summing all values in the
 When this calculated total matches a "ctch" number in the lore table, the player catches that specific lore item instead of regular loot. Items must be caught in the table's linear order.
 
 Lore System UI & Interaction:
-Toasts/Inventory Item Icons: Use the icon from Catches/Lore/....
-Right-Clicking on a lore item in the inventory: Hide all menus and display the image from Catches/Files/... corresponding to the lore item right clicked, in the center of the screen.
-Exit: Pressing ESC, E, or clicking anywhere closes the image and re-opens the inventory.
+Toasts/Backpack Item Icons: Use the icon from Catches/Lore/....
+Right-Clicking on a lore item in the backpack: Hide all menus and display the image from Catches/Files/... corresponding to the lore item right clicked, in the center of the screen.
+Exit: Pressing ESC, E, or clicking anywhere closes the image and re-opens the backpack.
 The player catches 1 lore item every time the "total" variable reaches a milestone defined in the lore table's ctch property.
 
 Fishing System:
 On successful Reel Ins add +1 to local storage for whatever type of item they caught (category + rarity)
 Filter loot by "time catchable" for current in-game hour and "rarity" for chances of getting that item.
+
+Code Names/ID's/Classes/etc.:
+Do not make any names of any code long. Keep them short, one word or abbreviated. Such as instead of "fishingCard" it would just be "fishing".
+
+UI Design:
+Keep it minimilistic, modern, no excessive padding.
+Use the font:
+Jersey 10 by Google Fonts
 
 Local Storage Variables:
 Store everything a user catches, the category and rarity:
@@ -147,7 +100,7 @@ const loot = [
 		name: "Old Boot",
 		desc: "Stinky Shoe",
 		iden: "oldboot",
-		icon: "fish/Source/Assets/Catches/Junk/oldboot.png",
+		icon: "./Source/Assets/Catches/Junk/oldboot.png",
 		ctgy: "junk",
 		rrty: "common",
 		sell: true,
@@ -162,7 +115,7 @@ const loot = [
 		name: "Crown",
 		desc: "Very Shiny",
 		iden: "crown",
-		icon: "fish/Source/Assets/Catches/Treasure/crown.png",
+		icon: "./Source/Assets/Catches/Treasure/crown.png",
 		ctgy: "treasure",
 		rrty: "rare",
 		sell: true,
