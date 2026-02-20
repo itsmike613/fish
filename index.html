@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Fish</title>
+
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
+
+	<link rel="stylesheet" href="./Source/Styles/index.css" />
+</head>
+
+<body>
+	<!-- UI -->
+	<div id="ui">
+		<div id="fish" class="card">
+			<button id="btn" class="btn">Fish</button>
+			<div id="bar" class="bar">
+				<div id="fill" class="fill"></div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Backpack -->
+	<div id="bag" class="off">
+		<div id="box" class="box">
+			<div id="inv" class="inv"></div>
+		</div>
+		<div id="inf" class="inf off"></div>
+	</div>
+
+	<!-- Lore view -->
+	<div id="view" class="off">
+		<img id="pic" alt="lore" />
+	</div>
+
+	<!-- Cursor item -->
+	<div id="cur" class="off">
+		<img id="curi" alt="" />
+		<div id="curq"></div>
+	</div>
+
+	<!-- Toasts -->
+	<div id="tos"></div>
+
+	<!-- Three.js (global THREE) -->
+	<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+	<script defer src="./Source/Scripts/index.js"></script>
+</body>
+
+</html>
