@@ -3,54 +3,46 @@
 
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>Fish</title>
-
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>fish</title>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
-
 	<link rel="stylesheet" href="./Source/Styles/index.css" />
 </head>
 
 <body>
 	<canvas id="bg"></canvas>
 
+	<div id="toasts" aria-live="polite" aria-atomic="true"></div>
+
 	<div id="ui">
-		<div id="fish" class="card">
-			<div class="row">
-				<button id="btn" class="btn">Fish</button>
+		<div id="c">
+			<div id="top">
+				<div id="n">fish</div>
+				<div id="clk">--:--</div>
 			</div>
-			<div class="pb">
-				<div id="bar" class="bar"></div>
-			</div>
-			<div id="clk" class="clk"></div>
+
+			<button id="fbtn" style="--p:0">Fish</button>
+			<div id="hint">Press <b>E</b> to open backpack</div>
 		</div>
 	</div>
 
-	<div id="bag" class="mod hid" aria-hidden="true">
-		<div class="box">
-			<div class="hd">
-				<div class="ttl">Backpack</div>
-				<div class="sub">E to close</div>
-			</div>
-
-			<div id="grid" class="grid"></div>
+	<div id="bag" aria-hidden="true">
+		<div id="box" role="dialog" aria-label="Backpack">
+			<div id="grid" aria-label="Slots"></div>
+			<div id="info" aria-label="Item info"></div>
 		</div>
 
-		<div id="info" class="info hid"></div>
+		<div id="hold" hidden>
+			<img id="himg" alt="" />
+			<div id="hqty"></div>
+		</div>
 	</div>
 
-	<div id="view" class="view hid" aria-hidden="true">
-		<img id="vimg" alt="lore" />
+	<div id="view" aria-hidden="true">
+		<img id="vimg" alt="" />
 	</div>
-
-	<div id="hand" class="hand hid" aria-hidden="true">
-		<img id="himg" alt="" />
-		<div id="hcnt" class="hcnt"></div>
-	</div>
-
-	<div id="ts" class="ts"></div>
 
 	<script type="module" src="./Source/Scripts/index.js"></script>
 </body>

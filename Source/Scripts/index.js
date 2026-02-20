@@ -1,4 +1,25 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+
+const $ = (s) => document.querySelector(s);
+
+const el = {
+    clk: $("#clk"),
+    btn: $("#fbtn"),
+    toasts: $("#toasts"),
+    bag: $("#bag"),
+    grid: $("#grid"),
+    info: $("#info"),
+    hold: $("#hold"),
+    himg: $("#himg"),
+    hqty: $("#hqty"),
+    view: $("#view"),
+    vimg: $("#vimg"),
+};
+
+const PATH = {
+    err: "./Source/Assets/Icons/error.png",
+    water: "./Source/Assets/Terrain/water.png",
+};
 
 const loot = [
     {
@@ -72,766 +93,722 @@ const lore = [
     }
 ];
 
-/* ---------- tiny utils ---------- */
-const $ = (s) => document.querySelector(s);
-const rndi = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
-const rnd = (a, b) => a + Math.random() * (b - a);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
+const rr2L = { common: "C", uncommon: "U", rare: "R", epic: "E", legendary: "L" };
+const rrW = { common: 0.65, uncommon: 0.22, rare: 0.10, epic: 0.025, legendary: 0.005 };
 
-const RR = { common: "C", uncommon: "U", rare: "R", epic: "E", legendary: "L" };
-const RW = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
+const K = { st: "catches", bag: "bag" };
 
-const K = {
-    cch: "cch",
-    inv: "inv",
-    t0: "t0"
-};
-
-const DEF = {
+const st0 = () => ({
     lore: 0,
     fish: { C: 0, U: 0, R: 0, E: 0, L: 0 },
     junk: { C: 0, U: 0, R: 0, E: 0, L: 0 },
     treasure: { C: 0, U: 0, R: 0, E: 0, L: 0 }
-};
+});
 
-function ld(k, d) {
+const bag0 = () => Array.from({ length: 45 }, () => null);
+
+function load(k, d) {
     try {
         const v = localStorage.getItem(k);
         return v ? JSON.parse(v) : d;
     } catch { return d; }
 }
-function sv(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 
-function sumCch(c) {
-    const s = (o) => Object.values(o).reduce((a, b) => a + b, 0);
-    return s(c.fish) + s(c.junk) + s(c.treasure);
+function stGet() {
+    const s = load(K.st, null);
+    if (!s || !s.fish || !s.junk || !s.treasure) {
+        const n = st0(); save(K.st, n); return n;
+    }
+    // patch missing keys
+    for (const c of ["fish", "junk", "treasure"]) for (const L of ["C", "U", "R", "E", "L"]) if (s[c][L] == null) s[c][L] = 0;
+    if (s.lore == null) s.lore = 0;
+    save(K.st, s);
+    return s;
+}
+function bagGet() {
+    const b = load(K.bag, null);
+    if (!Array.isArray(b) || b.length !== 45) { const n = bag0(); save(K.bag, n); return n; }
+    return b;
 }
 
-function fmtHr(h) {
-    const hh = Math.floor(h) % 24;
-    const mm = Math.floor((h - Math.floor(h)) * 60);
-    const ap = hh >= 12 ? "PM" : "AM";
-    const h12 = ((hh + 11) % 12) + 1;
-    return `${h12}:${String(mm).padStart(2, "0")} ${ap}`;
+function totalCatches(s) {
+    let n = 0;
+    for (const c of ["fish", "junk", "treasure"]) for (const L of ["C", "U", "R", "E", "L"]) n += (s[c][L] || 0);
+    return n;
 }
 
-function inTime(hr, win) {
-    // win: [[a,b], ...], supports wrap (a>b)
-    for (const [a, b] of win) {
-        if (a <= b) {
-            if (hr >= a && hr <= b) return true;
-        } else {
-            if (hr >= a || hr <= b) return true;
+function toast(icon, msg, err = false) {
+    const d = document.createElement("div");
+    d.className = "toast" + (err ? " err" : "");
+    d.innerHTML = `<img src="${icon}" alt=""><div class="msg">${msg}</div>`;
+    el.toasts.appendChild(d);
+    setTimeout(() => { d.style.opacity = "0"; d.style.transform = "translateY(-4px)"; }, 2000);
+    setTimeout(() => d.remove(), 2600);
+}
+
+function fmtTime(h, m) {
+    const ap = h >= 12 ? "PM" : "AM";
+    const hh = (h % 12) || 12;
+    return `${hh}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+/* -------------------- 24-minute in-game clock --------------------
+   Full day = 24 real minutes (1440 seconds).
+   11:00 PM occurs at exactly 23 minutes into the loop.
+------------------------------------------------------------------ */
+const t0 = performance.now();
+function gameMin() {
+    const s = (performance.now() - t0) / 1000;
+    return s % 1440; // 1 real second = 1 in-game minute
+}
+function gameHM() {
+    const gm = gameMin();
+    const h = Math.floor(gm / 60) % 24;
+    const m = Math.floor(gm % 60);
+    return { h, m, hf: h + m / 60 };
+}
+setInterval(() => {
+    const { h, m } = gameHM();
+    el.clk.textContent = fmtTime(h, m);
+}, 150);
+
+/* -------------------- Loot filtering -------------------- */
+function inTime(hf, ranges) {
+    for (const [a, b] of ranges) {
+        if (b >= a) {
+            if (hf >= a && hf < b) return true;
+        } else { // wrap
+            if (hf >= a || hf < b) return true;
         }
     }
     return false;
 }
 
-/* ---------- game time (24-min loop) ---------- */
-/* Sync rule used here:
-   24 real minutes = 24 in-game hours
-   => 1 real minute = 1 in-game hour
-   => 11:00 PM (23:00) = 23 minutes into the loop
-*/
-if (!localStorage.getItem(K.t0)) localStorage.setItem(K.t0, String(Date.now()));
-const t0 = Number(localStorage.getItem(K.t0));
-
-function curHr() {
-    const loop = 24 * 60 * 1000;
-    const e = (Date.now() - t0) % loop;
-    return (e / loop) * 24; // 0..24
-}
-
-/* ---------- UI refs ---------- */
-const ui = $("#ui");
-const fish = $("#fish");
-const btn = $("#btn");
-const bar = $("#bar");
-const clk = $("#clk");
-
-const bag = $("#bag");
-const grid = $("#grid");
-const info = $("#info");
-
-const ts = $("#ts");
-const hand = $("#hand");
-const himg = $("#himg");
-const hcnt = $("#hcnt");
-
-const view = $("#view");
-const vimg = $("#vimg");
-
-let cch = ld(K.cch, structuredClone(DEF));
-let inv = ld(K.inv, Array.from({ length: 45 }, () => null));
-
-/* ---------- toasts ---------- */
-function toast(ic, msg) {
-    const d = document.createElement("div");
-    d.className = "t";
-    const i = document.createElement("img");
-    i.src = ic;
-    const m = document.createElement("div");
-    m.className = "m";
-    m.textContent = msg;
-    d.appendChild(i);
-    d.appendChild(m);
-    ts.appendChild(d);
-    setTimeout(() => { d.style.opacity = "0"; d.style.transform = "translateY(-4px)"; }, 1800);
-    setTimeout(() => d.remove(), 2150);
-}
-
-/* ---------- fishing state ---------- */
-let st = "idle";     // idle | wait | bite
-let tW = 0;          // wait end
-let tB = 0;          // bite end
-let tAnim = 0;
-
-function resetFish() {
-    st = "idle";
-    btn.textContent = "Fish";
-    bar.style.transition = "width .2s linear";
-    bar.style.width = "0%";
-}
-
-function startFish() {
-    st = "wait";
-    btn.textContent = "Reel In";
-
-    const ms = rndi(2000, 6000);
-    const now = Date.now();
-    tW = now + ms;
-
-    // fill over wait duration
-    bar.style.transition = `width ${ms}ms linear`;
-    bar.style.width = "100%";
-
-    clearTimeout(tAnim);
-    tAnim = setTimeout(() => {
-        // bite window: 2s
-        st = "bite";
-        const bms = 2000;
-        tB = Date.now() + bms;
-
-        // drain over bite duration
-        bar.style.transition = `width ${bms}ms linear`;
-        bar.style.width = "0%";
-
-        clearTimeout(tAnim);
-        tAnim = setTimeout(() => {
-            if (st === "bite") {
-                toast("./Source/Assets/Icons/error.png", "The fish escaped!");
-                resetFish();
-            }
-        }, bms + 5);
-    }, ms + 10);
-}
-
-function pickRrty() {
-    const a = Object.entries(RW);
-    const tot = a.reduce((s, [, w]) => s + w, 0);
-    let r = Math.random() * tot;
-    for (const [k, w] of a) {
-        r -= w;
-        if (r <= 0) return k;
+function pickRarity(av) {
+    const ws = [];
+    for (const r of ["common", "uncommon", "rare", "epic", "legendary"]) {
+        if (av.has(r)) ws.push([r, rrW[r]]);
     }
-    return "common";
+    let sum = ws.reduce((p, x) => p + x[1], 0);
+    if (sum <= 0) return null;
+    let roll = Math.random() * sum;
+    for (const [r, w] of ws) {
+        roll -= w;
+        if (roll <= 0) return r;
+    }
+    return ws[ws.length - 1][0];
 }
 
-function pickLoot() {
-    const hr = curHr();
-    const rr = pickRrty();
+function rollLoot() {
+    const { hf } = gameHM();
+    const ok = loot.filter(it => inTime(hf, it.time));
+    if (!ok.length) return loot[Math.floor(Math.random() * loot.length)];
 
-    // time + rarity
-    let a = loot.filter(x => x.rrty === rr && inTime(hr, x.time));
-    if (!a.length) a = loot.filter(x => inTime(hr, x.time));
-    if (!a.length) a = loot.slice();
-    return a[rndi(0, a.length - 1)];
+    const av = new Set(ok.map(it => it.rrty));
+    const rr = pickRarity(av);
+
+    let pool = ok.filter(it => it.rrty === rr);
+    if (!pool.length) pool = ok;
+    return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function getLoreIt(i) {
-    const x = lore[i];
-    return {
-        name: x.name,
-        desc: x.desc,
-        iden: `lr${i}`,
-        icon: x.icon,
-        file: x.file,
+/* -------------------- Inventory -------------------- */
+const items = new Map();
+for (const it of loot) items.set(it.iden, it);
+for (let i = 0; i < lore.length; i++) {
+    items.set(`lore_${i}`, {
+        name: lore[i].name,
+        desc: lore[i].desc,
+        iden: `lore_${i}`,
+        icon: lore[i].icon,
+        file: lore[i].file,
         ctgy: "lore",
-        rrty: "legendary",
+        rrty: "lore",
         sell: false,
         slsp: 0,
         stak: 1,
-        wght: 0
-    };
+        wght: 0,
+        xpmi: 0,
+        xpma: 0,
+        time: [[0, 24]],
+    });
 }
 
-function getIt(id) {
-    if (id.startsWith("lr")) {
-        const i = Number(id.slice(2));
-        return getLoreIt(i);
-    }
-    return loot.find(x => x.iden === id) || null;
+let bag = bagGet();
+let hold = null; // {id, n}
+
+function slotEl(i) {
+    const d = document.createElement("div");
+    d.className = "slot";
+    d.dataset.i = String(i);
+    d.addEventListener("mouseenter", () => slotInfo(i));
+    d.addEventListener("mouseleave", () => infoClear());
+    d.addEventListener("contextmenu", (e) => { e.preventDefault(); slotRight(i); });
+    d.addEventListener("click", (e) => slotClick(i, e.shiftKey));
+    return d;
 }
 
-/* ---------- inventory ops ---------- */
-let open = false;
-let hov = -1;
-let hnd = null; // {id,n}
-
-function svAll() {
-    sv(K.cch, cch);
-    sv(K.inv, inv);
+function draw() {
+    el.grid.innerHTML = "";
+    for (let i = 0; i < 45; i++) el.grid.appendChild(slotEl(i));
+    drawSlots();
+    infoClear();
 }
-
-function addInv(id, n) {
-    const it = getIt(id);
-    if (!it) return false;
-
-    const stak = it.stak ?? 1;
-
-    // merge stacks first
-    for (let i = 0; i < inv.length; i++) {
-        const s = inv[i];
+function drawSlots() {
+    for (const d of el.grid.children) {
+        const i = +d.dataset.i;
+        const s = bag[i];
+        d.innerHTML = "";
         if (!s) continue;
-        if (s.id === id && s.n < stak) {
-            const can = stak - s.n;
-            const put = Math.min(can, n);
-            s.n += put;
-            n -= put;
-            if (n <= 0) return true;
+        const it = items.get(s.id);
+        if (!it) continue;
+        const img = document.createElement("img");
+        img.src = it.icon;
+        img.alt = it.name;
+        d.appendChild(img);
+        if (s.n > 1) {
+            const q = document.createElement("div");
+            q.className = "qty";
+            q.textContent = String(s.n);
+            d.appendChild(q);
+        }
+    }
+    holdDraw();
+}
+function holdDraw() {
+    if (!hold) { el.hold.hidden = true; return; }
+    const it = items.get(hold.id);
+    el.himg.src = it.icon;
+    el.himg.alt = it.name;
+    el.hqty.textContent = hold.n > 1 ? String(hold.n) : "";
+    el.hold.hidden = false;
+}
+window.addEventListener("mousemove", (e) => {
+    if (!hold || !document.body.classList.contains("bagOpen")) return;
+    el.hold.style.left = e.clientX + "px";
+    el.hold.style.top = e.clientY + "px";
+});
+
+function infoClear() {
+    el.info.innerHTML = `<div class="ds">Hover an item to see details.</div>`;
+}
+function slotInfo(i) {
+    const s = bag[i];
+    if (!s) { infoClear(); return; }
+    const it = items.get(s.id);
+    if (!it) { infoClear(); return; }
+
+    const meta = [];
+    if (it.ctgy !== "lore") meta.push(`$${it.slsp}`);
+    if (it.ctgy !== "lore") meta.push(`${it.wght} lbs`);
+    if (it.ctgy !== "lore") meta.push(`XP ${it.xpmi}-${it.xpma}`);
+    if (it.ctgy !== "lore") meta.push(`Stack ${it.stak}`);
+
+    el.info.innerHTML = `
+    <div class="t">
+      <div class="nm">${it.name}</div>
+      <div class="rt">${it.ctgy}${it.ctgy !== "lore" ? " • " + it.rrty : ""}</div>
+    </div>
+    <div class="ds">${it.desc}</div>
+    <div class="mt">${meta.map(x => `<span>${x}</span>`).join("")}</div>
+  `;
+}
+
+function addToBag(id, n) {
+    const it = items.get(id);
+    if (!it) return n;
+
+    // merge first
+    if (it.stak > 1) {
+        for (let i = 0; i < bag.length && n > 0; i++) {
+            const s = bag[i];
+            if (!s || s.id !== id) continue;
+            const cap = it.stak - s.n;
+            if (cap <= 0) continue;
+            const mv = Math.min(cap, n);
+            s.n += mv;
+            n -= mv;
         }
     }
 
     // empty slots
-    for (let i = 0; i < inv.length; i++) {
-        if (inv[i]) continue;
-        const put = Math.min(stak, n);
-        inv[i] = { id, n: put };
-        n -= put;
-        if (n <= 0) return true;
+    for (let i = 0; i < bag.length && n > 0; i++) {
+        if (bag[i]) continue;
+        const mv = Math.min(it.stak, n);
+        bag[i] = { id, n: mv };
+        n -= mv;
     }
-    return false;
+
+    save(K.bag, bag);
+    drawSlots();
+    return n; // leftover
 }
 
-function mvTo(a0, a1, b0, b1, i) {
-    // move slot i from [a0..a1] to [b0..b1]
-    const s = inv[i];
-    if (!s) return;
+function slotClick(i, sh) {
+    const s = bag[i];
 
-    const it = getIt(s.id);
-    const stak = it?.stak ?? 1;
-
-    // try merge in target
-    for (let j = b0; j <= b1; j++) {
-        const t = inv[j];
-        if (!t) continue;
-        if (t.id === s.id && t.n < stak) {
-            const can = stak - t.n;
-            const put = Math.min(can, s.n);
-            t.n += put;
-            s.n -= put;
-            if (s.n <= 0) { inv[i] = null; return; }
-        }
-    }
-    // then empty target
-    for (let j = b0; j <= b1; j++) {
-        if (inv[j]) continue;
-        inv[j] = { id: s.id, n: s.n };
-        inv[i] = null;
+    // shift-click: quick-move stack to first available/merge
+    if (sh && !hold && s) {
+        bag[i] = null;
+        const left = addToBag(s.id, s.n);
+        if (left > 0) bag[i] = { id: s.id, n: left };
+        save(K.bag, bag);
+        drawSlots();
+        slotInfo(i);
         return;
     }
-}
 
-function renInv() {
-    grid.innerHTML = "";
-    for (let i = 0; i < 45; i++) {
-        const d = document.createElement("div");
-        d.className = "s";
-        d.dataset.i = String(i);
-
-        const s = inv[i];
-        if (s) {
-            const it = getIt(s.id);
-            const ic = document.createElement("div");
-            ic.className = "ic";
-            ic.style.backgroundImage = `url("${it?.icon || ""}")`;
-            d.appendChild(ic);
-
-            if (s.n > 1) {
-                const c = document.createElement("div");
-                c.className = "cnt";
-                c.textContent = String(s.n);
-                d.appendChild(c);
-            }
-        }
-
-        d.addEventListener("mouseenter", () => { hov = i; renInfo(); });
-        d.addEventListener("mouseleave", () => { if (hov === i) { hov = -1; info.classList.add("hid"); } });
-
-        d.addEventListener("contextmenu", (e) => {
-            e.preventDefault();
-            const s = inv[i];
-            if (!s) return;
-            if (s.id.startsWith("lr")) {
-                openLore(s.id);
-            }
-        });
-
-        d.addEventListener("mousedown", (e) => {
-            if (e.button !== 0) return;
-            if (!open) return;
-
-            const i = Number(d.dataset.i);
-            const s = inv[i];
-
-            // shift-click quick move between main (0-35) and hotbar (36-44)
-            if (e.shiftKey && !hnd && s) {
-                if (i <= 35) mvTo(0, 35, 36, 44, i);
-                else mvTo(36, 44, 0, 35, i);
-                svAll(); renInv(); renInfo();
-                return;
-            }
-
-            // normal click pick/place/swap/merge
-            if (!hnd) {
-                if (!s) return;
-                hnd = { id: s.id, n: s.n };
-                inv[i] = null;
-            } else {
-                if (!s) {
-                    inv[i] = { id: hnd.id, n: hnd.n };
-                    hnd = null;
-                } else {
-                    const a = getIt(hnd.id);
-                    const stak = a?.stak ?? 1;
-
-                    if (s.id === hnd.id && s.n < stak) {
-                        const can = stak - s.n;
-                        const put = Math.min(can, hnd.n);
-                        s.n += put;
-                        hnd.n -= put;
-                        if (hnd.n <= 0) hnd = null;
-                    } else {
-                        const tmp = { id: s.id, n: s.n };
-                        inv[i] = { id: hnd.id, n: hnd.n };
-                        hnd = tmp;
-                    }
-                }
-            }
-
-            svAll();
-            renInv();
-            renHand();
-            renInfo();
-        });
-
-        grid.appendChild(d);
-    }
-}
-
-function renInfo() {
-    if (hov < 0 || !inv[hov]) { info.classList.add("hid"); return; }
-    const s = inv[hov];
-    const it = getIt(s.id);
-    if (!it) { info.classList.add("hid"); return; }
-
-    const cat = it.ctgy || "—";
-    const rr = it.rrty || "—";
-    const pr = it.sell ? `$${it.slsp ?? 0}` : "—";
-    const wt = (it.wght ?? 0) ? `${it.wght} lb` : "—";
-    const st = it.stak ?? 1;
-    const tm = it.time ? it.time.map(([a, b]) => `${a}-${b}`).join(" | ") : "—";
-
-    info.innerHTML = `
-    <div class="nm">${it.name}</div>
-    <div class="ds">${it.desc}</div>
-    <div class="ln">
-      <div>Cat: ${cat}</div>
-      <div>Rarity: ${rr}</div>
-      <div>Price: ${pr}</div>
-      <div>Stack: ${st}</div>
-      <div>Weight: ${wt}</div>
-      <div>Time: ${tm}</div>
-    </div>
-  `;
-    info.classList.remove("hid");
-}
-
-function renHand() {
-    if (!hnd) {
-        hand.classList.add("hid");
-        return;
-    }
-    const it = getIt(hnd.id);
-    if (!it) {
-        hand.classList.add("hid");
-        return;
-    }
-    himg.src = it.icon;
-    hcnt.textContent = hnd.n > 1 ? String(hnd.n) : "";
-    hand.classList.remove("hid");
-}
-
-function setOpen(v) {
-    open = v;
-    if (open) {
-        ui.classList.add("hid");
-        bag.classList.remove("hid");
-        bag.setAttribute("aria-hidden", "false");
-        renInv();
-        renInfo();
+    // normal click: pick/place/swap/merge
+    if (!hold) {
+        if (!s) return;
+        hold = { ...s };
+        bag[i] = null;
     } else {
-        bag.classList.add("hid");
-        bag.setAttribute("aria-hidden", "true");
-        ui.classList.remove("hid");
-        info.classList.add("hid");
-        hov = -1;
-        hnd = null;
-        renHand();
-    }
-}
-
-/* ---------- lore viewer ---------- */
-let vOn = false;
-function openLore(id) {
-    const it = getIt(id);
-    if (!it?.file) return;
-    vimg.src = it.file;
-
-    // hide all menus
-    ui.classList.add("hid");
-    bag.classList.add("hid");
-    view.classList.remove("hid");
-    vOn = true;
-}
-
-function closeLore() {
-    if (!vOn) return;
-    view.classList.add("hid");
-    vOn = false;
-    // re-open backpack
-    setOpen(true);
-}
-
-view.addEventListener("mousedown", () => closeLore());
-
-/* ---------- fishing rewards ---------- */
-function giveCatch() {
-    // Lore check (linear order): when total matches ctch, next catch becomes that lore item.
-    const tot = sumCch(cch);
-    if (cch.lore < lore.length && tot === lore[cch.lore].ctch) {
-        const li = cch.lore;
-        const it = getLoreIt(li);
-        cch.lore += 1;
-
-        addInv(it.iden, 1);
-        svAll();
-        toast(it.icon, `You caught x1 ${it.name}!`);
-        if (open) { renInv(); renInfo(); }
-        return;
-    }
-
-    const it = pickLoot();
-    const k = RR[it.rrty] || "C";
-    cch[it.ctgy][k] += 1;
-
-    addInv(it.iden, 1);
-    svAll();
-    toast(it.icon, `You caught x1 ${it.name}!`);
-    if (open) { renInv(); renInfo(); }
-}
-
-/* ---------- fish button ---------- */
-btn.addEventListener("click", () => {
-    if (open || vOn) return;
-
-    const now = Date.now();
-
-    if (st === "idle") {
-        startFish();
-        return;
-    }
-
-    if (st === "wait") {
-        // too early
-        toast("./Source/Assets/Icons/error.png", "Too quick!");
-        resetFish();
-        return;
-    }
-
-    if (st === "bite") {
-        if (now <= tB) {
-            giveCatch();
-            resetFish();
+        if (!s) {
+            bag[i] = { ...hold };
+            hold = null;
+        } else if (s.id === hold.id) {
+            const it = items.get(s.id);
+            const cap = it.stak - s.n;
+            if (cap > 0) {
+                const mv = Math.min(cap, hold.n);
+                s.n += mv;
+                hold.n -= mv;
+                if (hold.n <= 0) hold = null;
+            } else {
+                // full, swap
+                const tmp = { ...s };
+                bag[i] = { ...hold };
+                hold = tmp;
+            }
         } else {
-            toast("./Source/Assets/Icons/error.png", "The fish escaped!");
-            resetFish();
+            const tmp = { ...s };
+            bag[i] = { ...hold };
+            hold = tmp;
         }
     }
+    save(K.bag, bag);
+    drawSlots();
+    slotInfo(i);
+}
+
+function slotRight(i) {
+    const s = bag[i];
+    if (!s) return;
+    const it = items.get(s.id);
+    if (!it || it.ctgy !== "lore" || !it.file) return;
+    openView(it.file);
+}
+
+function openView(src) {
+    document.body.classList.add("viewOpen");
+    el.vimg.src = src;
+    el.view.setAttribute("aria-hidden", "false");
+}
+function closeView() {
+    document.body.classList.remove("viewOpen");
+    el.view.setAttribute("aria-hidden", "true");
+    el.vimg.src = "";
+}
+el.view.addEventListener("click", () => closeView());
+
+/* -------------------- Backpack toggle -------------------- */
+function bagOpen() {
+    resetCast();
+    document.body.classList.add("bagOpen");
+    el.bag.setAttribute("aria-hidden", "false");
+    draw();
+}
+function bagClose() {
+    hold = null;
+    document.body.classList.remove("bagOpen");
+    el.bag.setAttribute("aria-hidden", "true");
+}
+function bagToggle() {
+    if (document.body.classList.contains("viewOpen")) { closeView(); return; }
+    if (document.body.classList.contains("bagOpen")) bagClose();
+    else bagOpen();
+}
+
+window.addEventListener("keydown", (e) => {
+    if (e.key === "e" || e.key === "E") { e.preventDefault(); bagToggle(); }
+    if (e.key === "Escape") {
+        if (document.body.classList.contains("viewOpen")) closeView();
+    }
 });
 
-/* ---------- keys ---------- */
-window.addEventListener("keydown", (e) => {
-    if (e.code === "KeyE") {
-        e.preventDefault();
-        if (vOn) { closeLore(); return; }
-        setOpen(!open);
+/* -------------------- Fishing logic -------------------- */
+let cast = { st: "idle", t0: 0, dur: 0, raf: 0, readyAt: 0, to: null };
+
+function setP(p) { el.btn.style.setProperty("--p", String(Math.max(0, Math.min(100, p)))); }
+
+function resetCast() {
+    if (cast.raf) cancelAnimationFrame(cast.raf);
+    if (cast.to) clearTimeout(cast.to);
+    cast = { st: "idle", t0: 0, dur: 0, raf: 0, readyAt: 0, to: null };
+    el.btn.classList.remove("ready");
+    el.btn.textContent = "Fish";
+    setP(0);
+}
+
+function awardLoreIfAny() {
+    const s = stGet();
+    const idx = s.lore || 0;
+    const nx = lore[idx];
+    if (!nx) return null;
+
+    const tot = totalCatches(s);
+    // award when total equals the ctch threshold (linear, no skipping)
+    if (tot === nx.ctch) {
+        s.lore = idx + 1;
+        save(K.st, s);
+        return { id: `lore_${idx}`, n: 1 };
+    }
+    return null;
+}
+
+function catchOne() {
+    const loreDrop = awardLoreIfAny();
+    if (loreDrop) {
+        const it = items.get(loreDrop.id);
+        addToBag(loreDrop.id, loreDrop.n);
+        toast(it.icon, `You caught x${loreDrop.n} ${it.name}!`);
         return;
     }
-    if (e.code === "Escape") {
-        if (vOn) { closeLore(); return; }
-        if (open) { setOpen(false); }
-    }
-});
 
-/* ---------- mouse move (hand) ---------- */
-window.addEventListener("mousemove", (e) => {
-    if (!hnd) return;
-    renHand();
-    hand.style.transform = `translate(${e.clientX + 10}px, ${e.clientY + 10}px)`;
-});
+    const it = rollLoot();
+    const n = 1 + (Math.random() < 0.22 ? 1 : 0) + (Math.random() < 0.08 ? 1 : 0);
 
-/* ---------- clock UI ---------- */
-function tickClk() {
-    const hr = curHr();
-    clk.textContent = `Time: ${fmtHr(hr)} · Total: ${sumCch(cch)}`;
-    requestAnimationFrame(tickClk);
+    // increment local storage counts
+    const s = stGet();
+    const L = rr2L[it.rrty] || "C";
+    if (s[it.ctgy] && s[it.ctgy][L] != null) s[it.ctgy][L] += 1;
+    save(K.st, s);
+
+    addToBag(it.iden, Math.min(n, it.stak));
+    toast(it.icon, `You caught x${Math.min(n, it.stak)} ${it.name}!`);
 }
-tickClk();
 
-/* ---------- Three.js background (water + sky + gulls) ---------- */
+function castStart() {
+    cast.st = "wait";
+    cast.t0 = performance.now();
+    cast.dur = 2000 + Math.random() * 4000;
+    el.btn.textContent = "Reel In";
+    el.btn.classList.remove("ready");
+    setP(0);
+
+    const tick = () => {
+        if (cast.st !== "wait") return;
+        const p = ((performance.now() - cast.t0) / cast.dur) * 100;
+        setP(p);
+        if (p >= 100) return castReady();
+        cast.raf = requestAnimationFrame(tick);
+    };
+    cast.raf = requestAnimationFrame(tick);
+}
+
+function castReady() {
+    cast.st = "ready";
+    cast.readyAt = performance.now();
+    el.btn.classList.add("ready");
+    setP(100);
+
+    cast.to = setTimeout(() => {
+        if (cast.st !== "ready") return;
+        toast(PATH.err, "The fish escaped!", true);
+        resetCast();
+    }, 2000);
+}
+
+function castClick() {
+    if (document.body.classList.contains("bagOpen")) return;
+
+    if (cast.st === "idle") {
+        castStart();
+        return;
+    }
+    if (cast.st === "wait") {
+        toast(PATH.err, "Too quick!", true);
+        resetCast();
+        return;
+    }
+    if (cast.st === "ready") {
+        catchOne();
+        resetCast();
+    }
+}
+
+el.btn.addEventListener("click", castClick);
+
+/* -------------------- Three.js background -------------------- */
 const cvs = $("#bg");
-const ren = new THREE.WebGLRenderer({ canvas: cvs, antialias: true, alpha: true });
-ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+const r = new THREE.WebGLRenderer({ canvas: cvs, antialias: true, alpha: true });
+r.setPixelRatio(Math.min(devicePixelRatio, 2));
+r.setSize(innerWidth, innerHeight, false);
 
-const scn = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
-cam.position.set(0, 18, 28);
-cam.lookAt(0, 4, -30);
+const sc = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
+cam.position.set(0, 75, 190);
+cam.lookAt(0, 0, 0);
 
-const amb = new THREE.AmbientLight(0xffffff, 0.6);
-scn.add(amb);
+const fog = new THREE.Fog(new THREE.Color("#0a0f2b"), 260, 9000);
+sc.fog = fog;
+
+const amb = new THREE.AmbientLight(0xffffff, 0.45);
+sc.add(amb);
 
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(30, 60, 20);
-scn.add(sun);
+sun.position.set(260, 380, 120);
+sc.add(sun);
 
-scn.fog = new THREE.Fog(0x0b1220, 60, 420);
+// sky dome (simple gradient shader)
+const skyGeo = new THREE.SphereGeometry(12000, 24, 16);
+const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    transparent: false,
+    uniforms: {
+        top: { value: new THREE.Color("#0b1333") },
+        bot: { value: new THREE.Color("#01020a") },
+        pow: { value: 0.9 }
+    },
+    vertexShader: `
+    varying vec3 vPos;
+    void main(){
+      vPos = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `,
+    fragmentShader: `
+    varying vec3 vPos;
+    uniform vec3 top;
+    uniform vec3 bot;
+    uniform float pow;
+    void main(){
+      float h = normalize(vPos).y * 0.5 + 0.5;
+      h = pow(h, pow);
+      vec3 col = mix(bot, top, h);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+sc.add(sky);
+
+// stars (fade in at night)
+const starGeo = new THREE.BufferGeometry();
+const starN = 1200;
+const starPos = new Float32Array(starN * 3);
+for (let i = 0; i < starN; i++) {
+    const rad = 9000 + Math.random() * 2500;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.random() * Math.PI * 0.55; // mostly upper hemisphere
+    const x = Math.cos(th) * Math.sin(ph) * rad;
+    const y = Math.cos(ph) * rad;
+    const z = Math.sin(th) * Math.sin(ph) * rad;
+    starPos[i * 3 + 0] = x;
+    starPos[i * 3 + 1] = y;
+    starPos[i * 3 + 2] = z;
+}
+starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 12, sizeAttenuation: true, transparent: true, opacity: 1 });
+const stars = new THREE.Points(starGeo, starMat);
+sc.add(stars);
 
 // water plane
 const tl = new THREE.TextureLoader();
-const wtx = tl.load("./Source/Assets/Terrain/water.png", (t) => {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(200, 200);
-});
-wtx.colorSpace = THREE.SRGBColorSpace;
+const wTex = tl.load(PATH.water);
+wTex.wrapS = wTex.wrapT = THREE.RepeatWrapping;
+wTex.repeat.set(500, 500);
+wTex.colorSpace = THREE.SRGBColorSpace;
 
-const wmat = new THREE.MeshPhongMaterial({
-    map: wtx,
+const wGeo = new THREE.PlaneGeometry(20000, 20000, 1, 1);
+const wMat = new THREE.MeshStandardMaterial({
+    map: wTex,
     transparent: true,
-    opacity: 0.84,
-    shininess: 60,
-    specular: new THREE.Color(0x99ccff)
+    opacity: 0.78,
+    roughness: 0.15,
+    metalness: 0.0
 });
-const wgeo = new THREE.PlaneGeometry(2000, 2000, 1, 1);
-const wtr = new THREE.Mesh(wgeo, wmat);
-wtr.rotation.x = -Math.PI / 2;
-wtr.position.y = 0;
-scn.add(wtr);
+const water = new THREE.Mesh(wGeo, wMat);
+water.rotation.x = -Math.PI / 2;
+water.position.y = 0;
+sc.add(water);
 
-// stars (points)
-const stN = 900;
-const stPos = new Float32Array(stN * 3);
-for (let i = 0; i < stN; i++) {
-    const r = rnd(240, 520);
-    const th = rnd(0, Math.PI * 2);
-    const ph = rnd(0.15, Math.PI * 0.55);
-    stPos[i * 3 + 0] = Math.cos(th) * Math.sin(ph) * r;
-    stPos[i * 3 + 1] = Math.cos(ph) * r + 80;
-    stPos[i * 3 + 2] = Math.sin(th) * Math.sin(ph) * r;
-}
-const stGeo = new THREE.BufferGeometry();
-stGeo.setAttribute("position", new THREE.BufferAttribute(stPos, 3));
-const stMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 0.0 });
-const stars = new THREE.Points(stGeo, stMat);
-scn.add(stars);
+// simple seagulls
+class Gull {
+    constructor(seed) {
+        this.g = new THREE.Group();
+        const body = new THREE.Mesh(
+            new THREE.SphereGeometry(4.2, 16, 12),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })
+        );
+        body.scale.set(1.2, 0.8, 1.0);
+        this.g.add(body);
 
-// gulls
-function mkGull() {
-    const g = new THREE.Group();
+        const wingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 });
 
-    const b = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 10, 10),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 })
-    );
-    b.scale.set(1.6, 0.8, 0.9);
-    g.add(b);
+        this.wL = new THREE.Mesh(new THREE.BoxGeometry(10, 0.8, 3), wingMat);
+        this.wR = new THREE.Mesh(new THREE.BoxGeometry(10, 0.8, 3), wingMat);
+        this.wL.position.set(-8, 0, 0);
+        this.wR.position.set(8, 0, 0);
+        this.wL.geometry.translate(-5, 0, 0);
+        this.wR.geometry.translate(5, 0, 0);
+        this.g.add(this.wL, this.wR);
 
-    const wm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
-    const wg = new THREE.PlaneGeometry(1.1, 0.35);
+        this.a = seed * Math.PI * 2;
+        this.ra = 220 + Math.random() * 240;
+        this.h = 90 + Math.random() * 60;
+        this.sp = 0.10 + Math.random() * 0.12;
+        this.tNext = performance.now() + 6000 + Math.random() * 6000;
 
-    const wl = new THREE.Mesh(wg, wm);
-    wl.position.set(-0.72, 0, 0);
-    wl.rotation.y = Math.PI * 0.07;
-    g.add(wl);
-
-    const wr = new THREE.Mesh(wg, wm);
-    wr.position.set(0.72, 0, 0);
-    wr.rotation.y = -Math.PI * 0.07;
-    g.add(wr);
-
-    g.userData = {
-        on: false, t0: 0, t1: 0, a: 0, sp: 0, r: 0, y: 0, wl, wr
-    };
-
-    g.visible = false;
-    scn.add(g);
-    return g;
-}
-
-const gull = [mkGull(), mkGull(), mkGull()];
-let gNext = Date.now() + rndi(6000, 12000);
-
-function actG() {
-    const n = rndi(2, 3);
-    const now = Date.now();
-    let k = 0;
-    for (const g of gull) {
-        if (k >= n) break;
-        if (g.userData.on) continue;
-        g.userData.on = true;
-        g.userData.t0 = now;
-        g.userData.t1 = now + rndi(9000, 16000);
-        g.userData.a = rnd(0, Math.PI * 2);
-        g.userData.sp = rnd(0.25, 0.55);
-        g.userData.r = rnd(28, 58);
-        g.userData.y = rnd(16, 28);
-        g.visible = true;
-        k++;
+        this.g.position.set(Math.cos(this.a) * this.ra, this.h, Math.sin(this.a) * this.ra);
+        sc.add(this.g);
     }
-    gNext = now + rndi(16000, 34000);
-}
+    upd(dt) {
+        const t = performance.now();
 
-function col(hex) { return new THREE.Color(hex); }
-const C = {
-    n: col("#040616"),
-    sr: col("#ff7b2e"),
-    d: col("#87cfff"),
-    ss: col("#ff3b6a")
-};
-
-function skyAt(hr) {
-    // stages:
-    // night: 20-5, sunrise: 5-7, day: 7-17, sunset: 17-20
-    let c, ni = 0;
-
-    if (hr >= 20 || hr < 5) {
-        // night with slight fade near edges
-        const t = (hr >= 20) ? (hr - 20) / 4 : (hr + 4) / 9; // 20->24 and 0->5
-        c = C.n.clone();
-        ni = 1.0 - clamp(t, 0, 1) * 0.35;
-        return { c, ni: 1.0 };
-    }
-    if (hr >= 5 && hr < 7) {
-        const t = (hr - 5) / 2;
-        c = C.n.clone().lerp(C.sr, t);
-        return { c, ni: clamp(1.0 - t, 0, 1) };
-    }
-    if (hr >= 7 && hr < 17) {
-        const t = (hr - 7) / 10;
-        c = C.sr.clone().lerp(C.d, clamp(t * 1.15, 0, 1));
-        return { c, ni: 0.0 };
-    }
-    // 17-20 sunset
-    {
-        const t = (hr - 17) / 3;
-        c = C.d.clone().lerp(C.ss, t);
-        return { c, ni: 0.0 };
-    }
-}
-
-function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    ren.setSize(w, h, false);
-    cam.aspect = w / h;
-    cam.updateProjectionMatrix();
-}
-window.addEventListener("resize", resize);
-resize();
-
-let tPrev = performance.now();
-function loop(tNow) {
-    const dt = Math.min(0.05, (tNow - tPrev) / 1000);
-    tPrev = tNow;
-
-    const hr = curHr();
-    const sky = skyAt(hr);
-
-    scn.background = sky.c;
-    scn.fog.color.copy(sky.c);
-
-    // lighting sync
-    const day = clamp((Math.sin((hr / 24) * Math.PI * 2 - Math.PI / 2) + 1) / 2, 0, 1);
-    const li = lerp(0.25, 1.25, day);
-    amb.intensity = lerp(0.25, 0.7, day);
-    sun.intensity = li;
-
-    // sun direction
-    const ang = (hr / 24) * Math.PI * 2;
-    sun.position.set(Math.cos(ang) * 60, lerp(10, 85, day), Math.sin(ang) * 60);
-
-    // stars fade
-    const stO = clamp(1.0 - day * 1.25, 0, 1);
-    stMat.opacity = stO * 0.95;
-
-    // water scroll
-    if (wtx) {
-        wtx.offset.x += dt * 0.015;
-        wtx.offset.y += dt * 0.010;
-    }
-    // keep plane centered (infinite feel)
-    wtr.position.x = cam.position.x;
-    wtr.position.z = cam.position.z;
-
-    // gentle camera bob
-    cam.position.y = 18 + Math.sin(tNow * 0.0008) * 0.35;
-
-    // gull spawner
-    if (Date.now() > gNext) actG();
-
-    // gull anim
-    const now = Date.now();
-    for (const g of gull) {
-        const u = g.userData;
-        if (!u.on) continue;
-
-        if (now > u.t1) {
-            u.on = false;
-            g.visible = false;
-            continue;
+        if (t > this.tNext) {
+            this.tNext = t + 6000 + Math.random() * 8000;
+            this.ra = 160 + Math.random() * 520;
+            this.h = 70 + Math.random() * 110;
+            this.sp = 0.08 + Math.random() * 0.16;
         }
 
-        u.a += u.sp * dt;
-        const x = cam.position.x + Math.cos(u.a) * u.r;
-        const z = cam.position.z + Math.sin(u.a) * u.r - 40;
-        const y = u.y + Math.sin(u.a * 2.0) * 1.4;
+        this.a += this.sp * dt;
+        const x = Math.cos(this.a) * this.ra;
+        const z = Math.sin(this.a) * this.ra;
+        const y = this.h + Math.sin(this.a * 2.2) * 8;
 
-        g.position.set(x, y, z);
-        g.lookAt(cam.position.x, y, cam.position.z);
+        this.g.position.set(x, y, z);
+        this.g.lookAt(0, y - 10, 0);
 
-        const flap = Math.sin(tNow * 0.010) * 0.8;
-        u.wl.rotation.z = flap;
-        u.wr.rotation.z = -flap;
+        const flap = Math.sin(t * 0.012 + this.ra) * 0.9;
+        this.wL.rotation.z = 0.25 + flap;
+        this.wR.rotation.z = -0.25 - flap;
     }
+}
+const gulls = [new Gull(0.12), new Gull(0.44), new Gull(0.78)];
 
-    ren.render(scn, cam);
+function mixC(a, b, t) {
+    const ca = new THREE.Color(a), cb = new THREE.Color(b);
+    return ca.lerp(cb, t);
+}
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function smooth(a, b, x) {
+    const t = clamp01((x - a) / (b - a));
+    return t * t * (3 - 2 * t);
+}
+
+const env = {
+    night: { top: "#070c22", bot: "#000007", fog: "#0a0f2b", sun: "#a9c7ff", sI: 0.22, aI: 0.40, stars: 1.0 },
+    rise: { top: "#ffb36b", bot: "#2a1950", fog: "#7d4a8f", sun: "#ffd9b2", sI: 0.85, aI: 0.55, stars: 0.35 },
+    day: { top: "#78d0ff", bot: "#d4f4ff", fog: "#93d9ff", sun: "#fff1d2", sI: 1.10, aI: 0.58, stars: 0.0 },
+    set: { top: "#ff6a3d", bot: "#1b1033", fog: "#7a2e4a", sun: "#ffc08a", sI: 0.80, aI: 0.52, stars: 0.45 },
+};
+
+function envAt(hf) {
+    const w = 0.5; // blend window (hours)
+    // stages: Night, Sunrise (5-8), Day (8-17), Sunset (17-20), Night
+    if (hf < 5 - w || hf >= 20 + w) return env.night;
+
+    if (hf >= 5 - w && hf < 5 + w) {
+        const t = smooth(5 - w, 5 + w, hf);
+        return {
+            top: mixC(env.night.top, env.rise.top, t),
+            bot: mixC(env.night.bot, env.rise.bot, t),
+            fog: mixC(env.night.fog, env.rise.fog, t),
+            sun: mixC(env.night.sun, env.rise.sun, t),
+            sI: env.night.sI + (env.rise.sI - env.night.sI) * t,
+            aI: env.night.aI + (env.rise.aI - env.night.aI) * t,
+            stars: env.night.stars + (env.rise.stars - env.night.stars) * t,
+        };
+    }
+    if (hf >= 5 + w && hf < 8 - w) return env.rise;
+
+    if (hf >= 8 - w && hf < 8 + w) {
+        const t = smooth(8 - w, 8 + w, hf);
+        return {
+            top: mixC(env.rise.top, env.day.top, t),
+            bot: mixC(env.rise.bot, env.day.bot, t),
+            fog: mixC(env.rise.fog, env.day.fog, t),
+            sun: mixC(env.rise.sun, env.day.sun, t),
+            sI: env.rise.sI + (env.day.sI - env.rise.sI) * t,
+            aI: env.rise.aI + (env.day.aI - env.rise.aI) * t,
+            stars: env.rise.stars + (env.day.stars - env.rise.stars) * t,
+        };
+    }
+    if (hf >= 8 + w && hf < 17 - w) return env.day;
+
+    if (hf >= 17 - w && hf < 17 + w) {
+        const t = smooth(17 - w, 17 + w, hf);
+        return {
+            top: mixC(env.day.top, env.set.top, t),
+            bot: mixC(env.day.bot, env.set.bot, t),
+            fog: mixC(env.day.fog, env.set.fog, t),
+            sun: mixC(env.day.sun, env.set.sun, t),
+            sI: env.day.sI + (env.set.sI - env.day.sI) * t,
+            aI: env.day.aI + (env.set.aI - env.day.aI) * t,
+            stars: env.day.stars + (env.set.stars - env.day.stars) * t,
+        };
+    }
+    if (hf >= 17 + w && hf < 20 - w) return env.set;
+
+    if (hf >= 20 - w && hf < 20 + w) {
+        const t = smooth(20 - w, 20 + w, hf);
+        return {
+            top: mixC(env.set.top, env.night.top, t),
+            bot: mixC(env.set.bot, env.night.bot, t),
+            fog: mixC(env.set.fog, env.night.fog, t),
+            sun: mixC(env.set.sun, env.night.sun, t),
+            sI: env.set.sI + (env.night.sI - env.set.sI) * t,
+            aI: env.set.aI + (env.night.aI - env.set.aI) * t,
+            stars: env.set.stars + (env.night.stars - env.set.stars) * t,
+        };
+    }
+    return env.night;
+}
+
+let lt = performance.now();
+function loop() {
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - lt) / 1000);
+    lt = now;
+
+    // animate water
+    wTex.offset.x += dt * 0.012;
+    wTex.offset.y += dt * 0.008;
+
+    // gulls
+    for (const g of gulls) g.upd(dt);
+
+    // environment sync to clock
+    const { hf } = gameHM();
+    const e = envAt(hf);
+
+    skyMat.uniforms.top.value.copy(e.top instanceof THREE.Color ? e.top : new THREE.Color(e.top));
+    skyMat.uniforms.bot.value.copy(e.bot instanceof THREE.Color ? e.bot : new THREE.Color(e.bot));
+
+    const fc = e.fog instanceof THREE.Color ? e.fog : new THREE.Color(e.fog);
+    fog.color.copy(fc);
+
+    sun.color.copy(e.sun instanceof THREE.Color ? e.sun : new THREE.Color(e.sun));
+    sun.intensity = e.sI;
+    amb.intensity = e.aI;
+
+    starMat.opacity = e.stars;
+
+    r.render(sc, cam);
     requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+loop();
 
-/* ---------- init ---------- */
-resetFish();
-setOpen(false);
-svAll();
+addEventListener("resize", () => {
+    r.setSize(innerWidth, innerHeight, false);
+    cam.aspect = innerWidth / innerHeight;
+    cam.updateProjectionMatrix();
+});
+
+// init UI
+draw();
+resetCast();

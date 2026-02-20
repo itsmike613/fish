@@ -1,72 +1,85 @@
-Create a fishing game using HTML, CSS, JS, and Three.JS.
+Create a fishing game with HTML, CSS, JS, and Three.js.
 
-Background:
-The background of the entire website should be water using water.png for infinity, as far as the player can see, using Three.JS.
-Make the water slightly transparent, and "moving" sliding animation to make it feel more immersive.
-Add flying seagulls (white with flapping wings) flying around, (2-3) occasionally.
+Background (Three.js):
+Render an infinite water plane using water.png as the repeating texture (as far as the player can see).
+Make the water slightly transparent and animate the texture sliding to simulate movement.
+Add 2–3 white seagulls with flapping wings that occasionally fly around.
 
-Main Page Content:
-Create a card with a button on it that says "Fish", on the bottom of the button add a progress bar, by default it is empty.
-Once the Fish button is clicked, Change the button text to "Reel In", and make the progress bar last 2-6 seconds.
-Pressing the Reel In button too early will show a too early error toast
-After that time is up, the player needs to press "Reel In" within 2 seconds. or they lose the fish and the button goes back to "Fish" state. (This adds difficulty, by giving only two seconds to reel in the fish)
+Main Page:
+Show a minimalist card with:
+Top-left label: fish (game name)
+Top-right label: current in-game time
+Include a “Fish” button with a progress bar visually attached to the bottom edge of the button (like a bottom border / built-in strip, not a separate element floating under it). The bar is empty by default.
 
-Backpack Page (Inventory):
-Pressing (E), hides all the content on the page (fishing card, etc.)
-It opens the backpack modal, 5 rows of 9 slots. Just like the Minecraft inventory, shift click to quick move, click to pickup/move, etc.
-Pressing (E) again closes the backpack modal and goes back to the home page (fishing)
-Hovering over an item (with mouse) will display a modal under the backpack menu, this modal should have info on the current item being hovered, such as the name, description, price, and everything else.
-The backpack modal should stay the same size always, the hover item info creates the info modal below the backpack modal and should not shift the backpack modal up or any direction.
-The slots should be squares, yyou can make them the same size as in Minecrafts Inventory.
+On click:
+Change the button text to “Reel In”.
+Run the progress bar for a random duration between 2–6 seconds.
+If the player presses Reel In too early, show an error toast: “Too quick!”
+When the timer finishes, the player has 2 seconds to press Reel In:
+If they succeed, they catch an item.
+If they fail, show “The fish escaped!” and reset the button to “Fish”.
 
-Toast Structure:
-"[icon] _message_"
+Backpack (Inventory):
+Press E to hide all page content and open the backpack modal.
+Backpack layout: 5 rows × 9 slots, Minecraft-style:
+Click to pick up/move items.
+Shift-click to quick-move.
+Press E again to close the backpack and return to fishing.
+Hovering an item shows an info panel below the backpack (name, description, price, etc.).
+The backpack modal must not resize or shift when the info panel appears.
+Slots should be square, roughly Minecraft-sized.
 
 Toasts:
-Catching an item from Reel In button will show a toast that has the item they caught on the left (icon), then the message "You caught xN [itemname]!"
-Failing to catch within two seconds will make the toast icon "./Source/Assets/Icons/error.png" with the message "The fish escaped!"
-Reelining in too early will make the toast icon "./Source/Assets/Icons/error.png" with the message "Too quick!"
+Toasts appear top-center of the screen.
+Format: "[icon] message"
+Successful catch: item icon on the left + You caught xN [itemname]!
+Missed 2-second window: icon ./Source/Assets/Icons/error.png + The fish escaped!
+Reeled too early: icon ./Source/Assets/Icons/error.png + Too quick!
 
-The 24-Minute Logic (In game time system):
-1 Real Minute = 1 In-game Hour
-1 Real Second = 2.5 In-game Minutes
-11:00 PM = Exactly 23 minutes into the loop.
-Have the Three.JS background visually transition through the four stages of a day: a dark, star-filled Night, a vibrant glowing Sunrise, a bright clear Daytime, and a deep atmospheric Sunset. The lighting and sky color must stay perfectly synced with the 24-minute clock so the environment matches the "Time Catchable" stats of the fish.
+24-Minute In-Game Time System:
+1 real minute = 1 in-game hour
+1 real second = 2.5 in-game minutes
+11:00 PM = exactly 23 minutes into the 24-minute loop
+Visually sync the Three.js environment to the clock with four stages:
+Starry Night, glowing Sunrise, bright Day, atmospheric Sunset
+Lighting/sky colors must stay perfectly synced to match fish “time catchable” windows.
 
 Lore System:
-Calculate the total number of fish caught on demand by summing all values in the "catches" object stored in Local Storage (C + U + R + E + L).
-When this calculated total matches a "ctch" number in the lore table, the player catches that specific lore item instead of regular loot. Items must be caught in the table's linear order.
+On demand, compute total fish caught by summing all values in the catches object in Local Storage (C + U + R + E + L, across categories).
+When the total equals a lore entry’s ctch, award that lore item instead of normal loot.
+Lore items must be earned in linear table order (no skipping).
 
-Lore System UI & Interaction:
-Toasts/Backpack Item Icons: Use the icon from Catches/Lore/....
-Right-Clicking on a lore item in the backpack: Hide all menus and display the image from Catches/Files/... corresponding to the lore item right clicked, in the center of the screen.
-Exit: Pressing ESC, E, or clicking anywhere closes the image and re-opens the backpack.
-The player catches 1 lore item every time the "total" variable reaches a milestone defined in the lore table's ctch property.
+Lore UI & Interaction:
+Toasts and backpack icons use the lore icon from Catches/Lore/...
+Right-click a lore item in the backpack to:
+Hide all UI and display its image from Catches/Files/... centered on screen.
+Exit the image view with ESC, E, or clicking anywhere (returns to backpack).
 
-Fishing System:
-On successful Reel Ins add +1 to local storage for whatever type of item they caught (category + rarity)
-Filter loot by "time catchable" for current in-game hour and "rarity" for chances of getting that item.
+Fishing Loot Rules:
+On a successful catch, increment Local Storage for the caught item type (category + rarity).
+Loot must be filtered by:
+Current in-game hour vs. the item’s time ranges
+Rarity-based roll chances
 
-Code Names/ID's/Classes/etc.:
-Do not make any names long. Keep them short. Such as instead of "fishingCard" it would just be "fishing".
+Naming:
+Keep IDs/classes/variables short (e.g., "fishing" instead of "fishingCard").
 
-UI Design:
-Keep it minimilistic, modern, no excessive padding.
-Make sure everything fits on screen, especially when you have the backpack open and have the item info modal open at the same time.
-Use the font for everything:
-Jersey 10 by Google Fonts
+UI Style:
+Minimalist, modern, no excessive padding.
+Ensure everything fits on screen, including backpack + hover info panel.
+Use Google Font: Jersey 10 for all text.
 
-Local Storage Variables:
-Store everything a user catches, the category and rarity:
+Local Storage Schema:
+Store catch counts by category and rarity:
 {
   "lore": 0,
   "fish": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
   "junk": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
   "treasure": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 }
 }
-Calculate total by summing all counts across fish, junk, and treasure rarity buckets in Local Storage.
+Total catches = sum of all rarity buckets across fish, junk, and treasure.
 
-File Structure:
+File Structure
 fish/Source/Assets/Icons/error.png
 fish/Source/Assets/Terrain/water.png
 fish/Source/Assets/Catches/Fish/salmon.png
