@@ -41,7 +41,7 @@ const loot = [
         name: "Old Boot",
         desc: "Stinky Shoe",
         iden: "oldboot",
-        icon: "./Source/Assets/Catches/Junk/oldboot.png",
+        icon: "./Source/Assets/Catches/Junk/oldboot.gif",
         ctgy: "junk",
         rrty: "common",
         sell: true,
