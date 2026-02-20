@@ -4,7 +4,7 @@ export const loot = [
 		name: "...", // Name
 		desc: "...", // Description
 		iden: "...", // ID
-		imge: "...", // Image Sprite Path
+		icon: "...", // Image Sprite Path
 		ctgy: "...", // Item Category
 		luck: "...", // Item Rarity
 		sell: true, // Sellable
@@ -20,7 +20,7 @@ export const loot = [
 		name: "Salmon",
 		desc: "Tastes like $15 and the crushing realization that 'fresh caught' is just a marketing term for 'sat in a bucket of lukewarm seawater for six hours.'",
 		iden: "salmon",
-		imge: "./Source/Assets/Catches/salmon.png",
+		icon: "./Source/Assets/Catches/salmon.png",
 		ctgy: "fish",
 		rarity: "common",
 		catchable: Infinity,
@@ -31,19 +31,11 @@ export const loot = [
 	}
 ];
 
-export const bait = [
-	{
-		name: "Invisible Bread",
-		desc: "The fish can't see it. You can't see it. Does it even exist? Who knows.",
-		iden: "invisbread"
-	}
-];
-
 export const lore = [
 	{
 		name: "Research Log #1",
 		desc: "Entry 1",
-		imge: "./Source/Assets/Catches/Lore/researchlog.png",
+		icon: "./Source/Assets/Catches/Lore/researchlog.png",
 		file: "./Source/Assets/Catches/Files/researchlog1.png",
 		iden: 1
 		/*
@@ -53,7 +45,7 @@ export const lore = [
 	{
 		name: "Research Log #2",
 		desc: "Entry 2",
-		imge: "./Source/Assets/Catches/Lore/researchlog.png",
+		icon: "./Source/Assets/Catches/Lore/researchlog.png",
 		file: "./Source/Assets/Catches/Files/researchlog2.png",
 		iden: 2
 		/*
@@ -63,7 +55,7 @@ export const lore = [
 	{
 		name: "Research Log #3",
 		desc: "Entry 3",
-		imge: "./Source/Assets/Catches/Lore/researchlog.png",
+		icon: "./Source/Assets/Catches/Lore/researchlog.png",
 		file: "./Source/Assets/Catches/Files/researchlog3.png",
 		iden: 3
 		/*
@@ -73,7 +65,7 @@ export const lore = [
 	{
 		name: "Research Log #4",
 		desc: "Entry 4",
-		imge: "./Source/Assets/Catches/Lore/researchlog.png",
+		icon: "./Source/Assets/Catches/Lore/researchlog.png",
 		file: "./Source/Assets/Catches/Files/researchlog4.png",
 		iden: 4
 		/*
@@ -83,7 +75,7 @@ export const lore = [
 	{
 		name: "Soggy Travel Brochure",
 		desc: "A glossy, water-damaged pamphlet for 'The Paradise Pebble.' It promises 5-star luxury, 'Adaptive Landmass Technology,' and a world-class concierge named Dave. Gary has circled the 'Free Parking' disclaimer in gold ink. It’s the smoking gun that proves Gary didn't get shipwrecked; he actually paid for this experience.",
-		imge: "./Source/Assets/Catches/Lore/travelbrochure.png",
+		icon: "./Source/Assets/Catches/Lore/travelbrochure.png",
 		file: "./Source/Assets/Catches/Files/travelbrochure.png",
 		iden: 5
 		/*
@@ -105,7 +97,7 @@ export const lore = [
 	{
         name: "Research Log #5",
         desc: "Entry 5",
-        imge: "./Source/Assets/Catches/Lore/researchlog.png",
+        icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog5.png",
         iden: 6
         /*
@@ -115,7 +107,7 @@ export const lore = [
     {
         name: "Research Log #6",
         desc: "Entry 6",
-        imge: "./Source/Assets/Catches/Lore/researchlog.png",
+        icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog6.png",
         iden: 7
         /*
@@ -125,7 +117,7 @@ export const lore = [
     {
         name: "Research Log #7",
         desc: "Entry 7",
-        imge: "./Source/Assets/Catches/Lore/researchlog.png",
+        icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog7.png",
         iden: 8
         /*
@@ -135,7 +127,7 @@ export const lore = [
     {
         name: "Research Log #8",
         desc: "Entry 8",
-        imge: "./Source/Assets/Catches/Lore/researchlog.png",
+        icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog8.png",
         iden: 9
         /*
@@ -145,7 +137,7 @@ export const lore = [
     {
         name: "A Crinkled Postcard",
         desc: "A postcard from the REAL Paradise Pebble.",
-        imge: "./Source/Assets/Catches/Lore/postcard.png",
+        icon: "./Source/Assets/Catches/Lore/postcard.png",
         file: "./Source/Assets/Catches/Files/postcard.png",
         iden: 10
         /*
@@ -155,6 +147,17 @@ export const lore = [
         */
     }
 ];
+
+
+/*
+export const bait = [
+	{
+		name: "Invisible Bread",
+		desc: "The fish can't see it. You can't see it. Does it even exist? Who knows.",
+		iden: "invisbread"
+	}
+];
+*/
 
 
 /*export const loot = [
