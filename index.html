@@ -3,55 +3,61 @@
 
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Fish</title>
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>FISH</title>
+
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
+
 	<link rel="stylesheet" href="./Source/Styles/index.css" />
 </head>
 
 <body>
-	<canvas id="bg" aria-hidden="true"></canvas>
+	<div id="world"></div>
 
 	<div id="ui">
-		<div id="toastWrap" aria-live="polite" aria-atomic="true"></div>
-
 		<div id="card" class="card">
-			<div class="cardTop">
-				<div class="label" id="labelLeft">FISH</div>
-				<div class="label" id="labelTime">00:00</div>
+			<div class="cardHead">
+				<div class="label">FISH</div>
+				<div id="clock" class="clock">12:00 AM</div>
 			</div>
-			<button id="fishBtn" class="btn" style="--p: 0%;">
-				<span class="btnText">Fish</span>
+
+			<button id="fishBtn" class="btn" type="button">
+				<span id="fishText" class="btnText">Fish</span>
+				<span class="btnBar" aria-hidden="true">
+					<span id="barFill" class="btnFill"></span>
+				</span>
 			</button>
 		</div>
 	</div>
 
-	<div id="bag" class="modal hidden" role="dialog" aria-modal="true" aria-label="Backpack">
-		<div class="bagWindow">
-			<div class="bagHead">
-				<div class="label">FISH</div>
-				<div class="title">Backpack</div>
-				<div class="label" id="bagTime">00:00</div>
+	<div id="toasts" class="toasts" aria-live="polite" aria-atomic="true"></div>
+
+	<div id="backpack" class="overlay hidden" aria-hidden="true">
+		<div class="pack">
+			<div class="packHead">
+				<div class="packLeft">FISH</div>
+				<div class="packMid">Backpack</div>
+				<div id="packClock" class="packRight">12:00 AM</div>
 			</div>
 
-			<div id="grid" class="grid" aria-label="Inventory grid"></div>
-
-			<div id="info" class="info">
-				<div id="infoText">Hover an item to see details</div>
-			</div>
+			<div id="grid" class="grid" role="grid" aria-label="Backpack grid"></div>
 		</div>
 
-		<div id="held" class="held hidden" aria-hidden="true"></div>
+		<div id="info" class="info">Hover an item to see details</div>
+
+		<div id="cursor" class="cursor hidden" aria-hidden="true">
+			<img id="cursorImg" alt="" />
+			<div id="cursorQty" class="cursorQty"></div>
+		</div>
 	</div>
 
-	<div id="loreView" class="lore hidden" role="dialog" aria-modal="true" aria-label="Lore file viewer">
+	<div id="loreView" class="loreView hidden" aria-hidden="true">
 		<img id="loreImg" alt="Lore file" />
-		<div class="hint">Click / ESC / E to return</div>
 	</div>
 
 	<script type="module" src="./Source/Scripts/index.js"></script>
 </body>
 
-</html> 
+</html>
