@@ -3,11 +3,11 @@ Create a fishing game with HTML, CSS, JS, and Three.js.
 Background (Three.js):
 Render an infinite water plane using water.png as the repeating texture (as far as the player can see).
 Make the water slightly transparent and animate the texture sliding to simulate movement.
-Add 2–3 white seagulls with flapping wings that occasionally fly around.
+Add 2–3 white seagulls with flapping wings that occasionally fly around. They must be cubes, nothing can be round.
 
 Main Page:
 Show a minimalist card with:
-Top-left label: fish (game name)
+Top-left label: "FISH" (game name)
 Top-right label: current in-game time
 Include a “Fish” button with a progress bar visually attached to the bottom edge of the button (like a bottom border / built-in strip, not a separate element floating under it). The bar is empty by default.
 
@@ -21,20 +21,24 @@ If they fail, show “The fish escaped!” and reset the button to “Fish”.
 
 Backpack (Inventory):
 Press E to hide all page content and open the backpack modal.
+Backpack Title "FISH" (left) "Backpack" (center) [current ingame time] (right)
 Backpack layout: 5 rows × 9 slots, Minecraft-style:
 Click to pick up/move items.
 Shift-click to quick-move.
 Press E again to close the backpack and return to fishing.
 Hovering an item shows an info panel below the backpack (name, description, price, etc.).
 The backpack modal must not resize or shift when the info panel appears.
+Always have the info panel be visible but when not hovering an item have it say "Hover an item to see details".
 Slots should be square, roughly Minecraft-sized.
 
 Toasts:
 Toasts appear top-center of the screen.
 Format: "[icon] message"
 Successful catch: item icon on the left + You caught xN [itemname]!
+(The user always only catches x1 but for the future, don't hardcode it)
 Missed 2-second window: icon ./Source/Assets/Icons/error.png + The fish escaped!
 Reeled too early: icon ./Source/Assets/Icons/error.png + Too quick!
+The toasts should be the same width as the Fish button card.
 
 24-Minute In-Game Time System:
 1 real minute = 1 in-game hour
@@ -42,6 +46,7 @@ Reeled too early: icon ./Source/Assets/Icons/error.png + Too quick!
 11:00 PM = exactly 23 minutes into the 24-minute loop
 Visually sync the Three.js environment to the clock with four stages:
 Starry Night, glowing Sunrise, bright Day, atmospheric Sunset
+Have it be smooth transistions between each.
 Lighting/sky colors must stay perfectly synced to match fish “time catchable” windows.
 
 Lore System:
@@ -63,11 +68,20 @@ Rarity-based roll chances
 
 Naming:
 Keep IDs/classes/variables short (e.g., "fishing" instead of "fishingCard").
+Do not heavily abbreviate names if at all. I have OCD
+I still want to be able to tell instantly what a name is doing.
 
 UI Style:
 Minimalist, modern, no excessive padding.
 Ensure everything fits on screen, including backpack + hover info panel.
 Use Google Font: Jersey 10 for all text.
+
+Future:
+Allow the code to be expandable/modular, I would like to add music/SFX to the game, leveling system, marketplace, etc.
+Do not add these systems yet, just make sure I can add them in the future.
+
+Code:
+Use the best coding methods/practices, as if a professional is making this game. Make sure the code is easy to maintain and add to, everything is organized, no systems are overlapping into each other, everything has it's own place and can be easily added to/ or completly removed from the game.
 
 Local Storage Schema:
 Store catch counts by category and rarity:
@@ -165,4 +179,384 @@ const lore = [
 		file: "./Source/Assets/Catches/Files/researchlog2.png",
 		ctch: 32
 	}
+];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Build a Fishing Game (HTML/CSS/JS + Three.js)
+File Tree (must match)
+
+fish/index.html
+
+fish/Source/Styles/index.css
+
+fish/Source/Scripts/index.js
+
+fish/Source/Assets/Icons/error.png
+
+fish/Source/Assets/Terrain/water.png
+
+fish/Source/Assets/Catches/Fish/salmon.png
+
+fish/Source/Assets/Catches/Junk/oldboot.png
+
+fish/Source/Assets/Catches/Treasure/crown.png
+
+fish/Source/Assets/Catches/Lore/researchlog.png
+
+fish/Source/Assets/Catches/Lore/travelbrochure.png
+
+fish/Source/Assets/Catches/Files/researchlog1.png
+
+fish/Source/Assets/Catches/Files/travelbrochure.png
+
+fish/Source/Assets/Catches/Files/researchlog2.png
+
+Global Rules
+
+Use Google Font Jersey 10 for all text.
+
+Minimalist, modern UI (no excessive padding). Everything must fit on screen (including backpack + info panel).
+
+Keep code modular/expandable (future music/SFX, leveling, marketplace), but do not implement those systems yet.
+
+Naming: keep identifiers short but instantly understandable (no heavy abbreviations).
+
+Three.js Background
+
+Render an “infinite” water plane (as far as the player can see) using water.png as a repeating texture.
+
+Water is slightly transparent.
+
+Animate water by sliding the texture/UVs to simulate movement.
+
+Add 2–3 seagulls that occasionally fly around.
+
+Seagulls must be only cubes (body + wings as cubes). Nothing round.
+
+Wings flap (simple rotation animation is fine).
+
+Main UI (Fishing Card)
+
+A minimalist card overlay:
+
+Top-left label: “FISH”
+
+Top-right label: current in-game time
+
+One button: “Fish”
+
+Button has a progress bar built into the bottom edge of the button (like a bottom border/strip). Not a separate floating element.
+
+Bar is empty by default.
+
+Fishing Flow (states)
+
+On clicking Fish:
+
+Button text becomes “Reel In”
+
+Start a random wait timer: 2–6 seconds
+
+While timer is running:
+
+If player presses Reel In early → toast: error icon + “Too quick!” then reset to Fish and empty bar
+
+When the timer completes:
+
+Player has 2 seconds to press Reel In
+
+If press within window → catch item, show success toast, reset to Fish
+
+If miss window → toast error icon + “The fish escaped!”, reset to Fish
+
+Toasts
+
+Appear top-center
+
+Same width as the fishing card
+
+Format: "[icon] message"
+
+Success: use the caught item icon + You caught xN [itemname]!
+
+(Catch is always x1 for now, but do not hardcode; structure must support xN)
+
+Errors use: ./Source/Assets/Icons/error.png
+
+Too early: Too quick!
+
+Missed window: The fish escaped!
+
+Backpack (Inventory)
+
+Press E to hide all page content and open backpack modal.
+
+Press E again to close and return to fishing.
+
+Backpack header:
+
+Left: FISH
+
+Center: Backpack
+
+Right: current in-game time
+
+Layout: 5 rows × 9 slots, Minecraft-style
+
+Slots must be square and roughly Minecraft-sized
+
+Interactions:
+
+Click: pick up / place / swap items
+
+Shift-click: quick-move (standard “quick move to next available slot” behavior)
+
+Hovering an item shows an info panel below the backpack:
+
+Always visible (never collapses)
+
+Default text when no hover: “Hover an item to see details”
+
+Must include item fields (name/desc/price/etc.)
+
+Backpack modal must not resize or shift when panel content changes
+
+Lore Items: UI + Viewing
+
+Lore icons come from Catches/Lore/... and are used in toasts + backpack.
+
+Right-click a lore item in backpack:
+
+Hide all UI
+
+Show its image from Catches/Files/... centered
+
+Exit image view with ESC, E, or click anywhere
+
+Return to backpack (not the main fishing UI)
+
+In-Game Time (24-minute loop)
+
+Full day loop = 24 real minutes
+
+Rate:
+
+1 real minute = 1 in-game hour
+
+1 real second = 2.5 in-game minutes
+
+Anchor:
+
+11:00 PM (23:00) = exactly 23 minutes into the 24-minute loop
+
+Display time on main card and backpack header.
+
+Three.js environment must be perfectly synced to this clock with smooth transitions across:
+
+Starry Night
+
+Glowing Sunrise
+
+Bright Day
+
+Atmospheric Sunset
+
+Transitions must be smooth and remain aligned with “time catchable” windows (no drift).
+
+Loot Rules
+
+On successful catch:
+
+Before normal loot, check Lore System (below).
+
+Otherwise roll loot from loot[]:
+
+Filter candidates by current in-game hour and each item’s time ranges (supports fractional hours like 16.5).
+
+Apply rarity-based roll chances (define a clear, adjustable config).
+
+Add the item to inventory (respect stacking).
+
+Increment Local Storage counts for that item’s category + rarity.
+
+Lore System (award order locked)
+
+Local Storage has a catches object (schema below).
+
+“Total fish caught” is computed on demand by summing all values across:
+
+fish + junk + treasure rarity buckets (C/U/R/E/L)
+
+When totalCatches equals a lore entry’s ctch:
+
+Award that lore item instead of normal loot
+
+Lore must be earned in linear order (no skipping). Next lore entry only.
+
+Local Storage Schema (must match)
+
+Store catch counts by category and rarity:
+
+{
+  "lore": 0,
+  "fish": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
+  "junk": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 },
+  "treasure": { "C": 0, "U": 0, "R": 0, "E": 0, "L": 0 }
+}
+
+Total catches = sum of all rarity buckets across fish/junk/treasure.
+
+Loot + Lore Data (use this structure)
+
+Use exactly this shape for items (fields + meanings unchanged):
+
+const loot = [
+  {
+    name: "Salmon",
+    desc: "Smells Fishy",
+    iden: "salmon",
+    icon: "./Source/Assets/Catches/Fish/salmon.png",
+    ctgy: "fish",
+    rrty: "uncommon",
+    sell: true,
+    slsp: 15,
+    stak: 256,
+    wght: 10,
+    xpmi: 5,
+    xpma: 8,
+    time: [[5, 8], [16.5, 21.25]]
+  },
+  {
+    name: "Old Boot",
+    desc: "Stinky Shoe",
+    iden: "oldboot",
+    icon: "./Source/Assets/Catches/Junk/oldboot.png",
+    ctgy: "junk",
+    rrty: "common",
+    sell: true,
+    stak: 256,
+    wght: 1.5,
+    xpmi: 2,
+    xpma: 4,
+    slsp: 2,
+    time: [[0, 24]]
+  },
+  {
+    name: "Crown",
+    desc: "Very Shiny",
+    iden: "crown",
+    icon: "./Source/Assets/Catches/Treasure/crown.png",
+    ctgy: "treasure",
+    rrty: "rare",
+    sell: true,
+    stak: 256,
+    wght: 2.8,
+    xpmi: 7,
+    xpma: 9,
+    slsp: 1000,
+    time: [[0, 24]]
+  }
+];
+
+const lore = [
+  {
+    name: "Research Log #1",
+    desc: "Entry 1",
+    icon: "./Source/Assets/Catches/Lore/researchlog.png",
+    file: "./Source/Assets/Catches/Files/researchlog1.png",
+    ctch: 5
+  },
+  {
+    name: "Soggy Travel Brochure",
+    desc: "Water-damaged pamphlet",
+    icon: "./Source/Assets/Catches/Lore/travelbrochure.png",
+    file: "./Source/Assets/Catches/Files/travelbrochure.png",
+    ctch: 17
+  },
+  {
+    name: "Research Log #2",
+    desc: "Entry 2",
+    icon: "./Source/Assets/Catches/Lore/researchlog.png",
+    file: "./Source/Assets/Catches/Files/researchlog2.png",
+    ctch: 32
+  }
 ];
