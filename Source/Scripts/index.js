@@ -78,17 +78,17 @@ const lore = [
         ctch: 2
     },
     {
-        name: "Soggy Travel Brochure",
-        desc: "Water-damaged pamphlet",
-        icon: "./Source/Assets/Catches/Lore/travelbrochure.png",
-        file: "./Source/Assets/Catches/Files/travelbrochure.png",
-        ctch: 4
-    },
-    {
         name: "Research Log #2",
         desc: "Entry 2",
         icon: "./Source/Assets/Catches/Lore/researchlog.png",
         file: "./Source/Assets/Catches/Files/researchlog2.png",
+        ctch: 4
+    },
+    {
+        name: "Soggy Travel Brochure",
+        desc: "Water-damaged pamphlet",
+        icon: "./Source/Assets/Catches/Lore/travelbrochure.png",
+        file: "./Source/Assets/Catches/Files/travelbrochure.png",
         ctch: 6
     }
 ];
